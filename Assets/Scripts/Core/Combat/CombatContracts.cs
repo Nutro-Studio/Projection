@@ -21,7 +21,7 @@ namespace Core.Combat
         IReadOnlyList<CombatUnit> Attackers,
         IReadOnlyList<CombatUnit> Defenders,
         bool DefenderHasFort,
-        FactionType DefenderFaction
+        bool DefenderReceivesFortBonus
     );
 
     public record CombatResult(

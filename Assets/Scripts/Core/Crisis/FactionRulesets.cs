@@ -6,6 +6,7 @@ namespace Core.Crisis
     {
         public FactionType Archetype => FactionType.Militants;
         public bool IsLanded => true;
+        public bool ReceivesFortificationBonus => true;
         public int CalculateUpkeepRevenue(int controlledProvinces) => controlledProvinces;
     }
 
@@ -13,6 +14,7 @@ namespace Core.Crisis
     {
         public FactionType Archetype => FactionType.Zealots;
         public bool IsLanded => true;
+        public bool ReceivesFortificationBonus => false;
         public int CalculateUpkeepRevenue(int controlledProvinces) => controlledProvinces;
     }
 
@@ -20,6 +22,7 @@ namespace Core.Crisis
     {
         public FactionType Archetype => FactionType.Guerrillas;
         public bool IsLanded => false;
+        public bool ReceivesFortificationBonus => false;
         public int CalculateUpkeepRevenue(int controlledProvinces) => 0;
     }
 
@@ -27,6 +30,7 @@ namespace Core.Crisis
     {
         public FactionType Archetype => FactionType.Guilds;
         public bool IsLanded => false;
+        public bool ReceivesFortificationBonus => false;
         public int CalculateUpkeepRevenue(int controlledProvinces) => 0;
     }
 }

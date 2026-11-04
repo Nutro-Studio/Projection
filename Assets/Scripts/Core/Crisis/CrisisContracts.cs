@@ -17,13 +17,15 @@ namespace Core.Crisis
         FactionType PreviousFaction,
         FactionType NewFaction,
         bool IsCrisis,
-        bool IsAscension
+        bool IsAscension,
+        bool IsVoluntary
     );
 
     public interface IFactionRuleset
     {
         FactionType Archetype { get; }
         bool IsLanded { get; }
+        bool ReceivesFortificationBonus { get; }
         int CalculateUpkeepRevenue(int controlledProvinces);
     }
 
@@ -31,9 +33,14 @@ namespace Core.Crisis
     {
         bool CanTriggerCrisis(PlayerProfile player, int controlledProvinces);
         bool CanTriggerAscension(PlayerProfile player, int controlledProvinces);
+        bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction, int controlledProvinces);
+        bool CheckVictory(PlayerProfile player);
+
         CrisisShiftResult ExecuteForcedCrisis(PlayerProfile player);
         CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction);
+        CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction);
 
         event Action<CrisisShiftResult> OnRulesetShifted;
+        event Action<PlayerProfile> OnVictoryAchieved;
     }
 }
