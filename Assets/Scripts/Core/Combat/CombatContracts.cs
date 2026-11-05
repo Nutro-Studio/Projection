@@ -34,7 +34,9 @@ namespace Core.Combat
         IReadOnlyList<CombatUnit> SurvivingAttackers,
         IReadOnlyList<CombatUnit> SurvivingDefenders,
         bool AttackerMustRetreat,
-        bool DefenderMustRetreat
+        bool DefenderMustRetreat,
+        (int roll1, int roll2, int roll3) AttackerRolls,
+        (int roll1, int roll2, int roll3) DefenderRolls
     );
 
     public interface IDiceRoller

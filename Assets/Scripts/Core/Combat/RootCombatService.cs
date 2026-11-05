@@ -62,7 +62,9 @@ namespace Core.Combat
                 SurvivingAttackers: survivingAttackers,
                 SurvivingDefenders: survivingDefenders,
                 AttackerMustRetreat: attackerRetreats,
-                DefenderMustRetreat: defenderRetreats
+                DefenderMustRetreat: defenderRetreats,
+                AttackerRolls: (a1, a2, a3),
+                DefenderRolls: (d1, d2, d3)
             );
         }
 
