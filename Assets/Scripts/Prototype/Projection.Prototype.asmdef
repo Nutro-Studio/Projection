@@ -1,0 +1,16 @@
+{
+    "name": "Projection.Prototype",
+    "rootNamespace": "Projection.Prototype",
+    "references": [
+        "Projection.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
