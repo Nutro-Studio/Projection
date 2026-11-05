@@ -1,0 +1,311 @@
+:root {
+    --cream: rgb(250, 240, 216);
+    --ink: rgb(58, 38, 22);
+}
+
+.hud-root {
+    flex-grow: 1;
+    color: var(--cream);
+    font-size: 16px;
+}
+
+.layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.icon {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    margin-right: 8px;
+}
+
+.icon--small {
+    width: 20px;
+    height: 20px;
+    margin-right: 6px;
+}
+
+.icon--dark {
+    -unity-background-image-tint-color: var(--ink);
+}
+
+.icon--flag {
+    background-image: url("../Art/Kenney/Icons/flag_triangle.png");
+}
+
+.icon--gold {
+    background-image: url("../Art/Kenney/Icons/pouch.png");
+    -unity-background-image-tint-color: rgb(255, 214, 92);
+}
+
+.icon--vp {
+    background-image: url("../Art/Kenney/Icons/star.png");
+    -unity-background-image-tint-color: rgb(255, 214, 92);
+}
+
+.icon--turn {
+    background-image: url("../Art/Kenney/Icons/hourglass.png");
+    -unity-background-image-tint-color: var(--cream);
+}
+
+.icon--pawn {
+    background-image: url("../Art/Kenney/Icons/pawn.png");
+}
+
+.icon--fort {
+    background-image: url("../Art/Kenney/Icons/structure_tower.png");
+}
+
+.top-bar {
+    flex-direction: row;
+    align-items: center;
+    margin: 8px 12px 0 12px;
+    padding: 12px 22px;
+    background-image: url("../Art/Kenney/UI/panel_brown.png");
+    -unity-slice-left: 14;
+    -unity-slice-right: 14;
+    -unity-slice-top: 14;
+    -unity-slice-bottom: 14;
+}
+
+.top-text {
+    margin-right: 30px;
+    padding: 0;
+    color: var(--cream);
+    -unity-text-align: middle-left;
+}
+
+.top-text--strong {
+    font-size: 18px;
+    -unity-font-style: bold;
+}
+
+.top-end {
+    margin-left: auto;
+}
+
+.top-text--last {
+    margin-right: 0;
+}
+
+.banner {
+    align-self: center;
+    margin-top: 12px;
+    padding: 10px 22px;
+    background-image: url("../Art/Kenney/UI/panelInset_brown.png");
+    -unity-slice-left: 14;
+    -unity-slice-right: 14;
+    -unity-slice-top: 14;
+    -unity-slice-bottom: 14;
+    color: rgb(255, 214, 92);
+}
+
+.bottom-row {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: 14px;
+    flex-direction: row;
+    align-items: flex-end;
+}
+
+.spacer {
+    flex-grow: 1;
+}
+
+.card {
+    padding: 18px 20px;
+    -unity-slice-left: 14;
+    -unity-slice-right: 14;
+    -unity-slice-top: 14;
+    -unity-slice-bottom: 14;
+}
+
+.card--light {
+    background-image: url("../Art/Kenney/UI/panel_beige.png");
+    color: var(--ink);
+}
+
+.card--dark {
+    background-image: url("../Art/Kenney/UI/panel_brown.png");
+    color: var(--cream);
+}
+
+.card-title {
+    margin-bottom: 8px;
+    padding: 0;
+    font-size: 23px;
+    -unity-font-definition: url("../Art/Kenney/Fonts/KenneyFuture.ttf");
+}
+
+.card-text {
+    margin-bottom: 4px;
+    padding: 0;
+    white-space: normal;
+}
+
+.card--light .card-title,
+.card--light .card-text {
+    color: var(--ink);
+}
+
+.card--dark .card-title,
+.card--dark .card-text {
+    color: var(--cream);
+}
+
+.info-row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.province-panel {
+    width: 280px;
+}
+
+.action-button {
+    height: 42px;
+    margin: 8px 0 0 0;
+    padding: 0 0 4px 0;
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+    background-image: url("../Art/Kenney/UI/buttonLong_beige.png");
+    -unity-slice-left: 12;
+    -unity-slice-right: 12;
+    -unity-slice-top: 12;
+    -unity-slice-bottom: 14;
+    color: var(--ink);
+    font-size: 17px;
+}
+
+.action-button:hover {
+    background-color: rgba(0, 0, 0, 0);
+    -unity-background-image-tint-color: rgb(255, 250, 235);
+}
+
+.action-button:active {
+    background-color: rgba(0, 0, 0, 0);
+    background-image: url("../Art/Kenney/UI/buttonLong_beige_pressed.png");
+}
+
+.action-button:disabled {
+    background-color: rgba(0, 0, 0, 0);
+    background-image: url("../Art/Kenney/UI/buttonLong_grey.png");
+    -unity-background-image-tint-color: rgb(165, 160, 150);
+    color: rgb(62, 58, 52);
+    opacity: 1;
+}
+
+.action-button--primary {
+    -unity-background-image-tint-color: rgb(255, 196, 84);
+    -unity-font-style: bold;
+}
+
+.action-button--primary:hover {
+    -unity-background-image-tint-color: rgb(255, 214, 120);
+}
+
+.end-turn-group {
+    width: 320px;
+    align-items: stretch;
+}
+
+.status {
+    padding: 10px 14px;
+    background-image: url("../Art/Kenney/UI/panelInset_brown.png");
+    -unity-slice-left: 14;
+    -unity-slice-right: 14;
+    -unity-slice-top: 14;
+    -unity-slice-bottom: 14;
+    color: var(--cream);
+    white-space: normal;
+}
+
+.province-marker {
+    position: absolute;
+    width: 160px;
+    margin-left: -80px;
+    margin-top: -24px;
+    align-items: center;
+}
+
+.province-marker__name {
+    padding: 0;
+    color: rgb(255, 255, 255);
+    font-size: 19px;
+    -unity-font-definition: url("../Art/Kenney/Fonts/KenneyFuture.ttf");
+    -unity-text-outline-width: 1px;
+    -unity-text-outline-color: rgb(30, 20, 12);
+}
+
+.province-marker__row {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.province-marker__row .icon {
+    -unity-background-image-tint-color: rgb(255, 255, 255);
+}
+
+.province-marker__count {
+    margin-right: 10px;
+    padding: 0;
+    color: rgb(255, 255, 255);
+    font-size: 20px;
+    -unity-font-style: bold;
+    -unity-text-outline-width: 1px;
+    -unity-text-outline-color: rgb(30, 20, 12);
+}
+
+.overlay {
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(10, 12, 16, 0.6);
+}
+
+.combat-card {
+    width: 600px;
+}
+
+.dice-row {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.dice-side {
+    width: 104px;
+    padding: 0;
+    color: var(--cream);
+}
+
+.die {
+    width: 66px;
+    height: 66px;
+    margin-right: 10px;
+    padding: 18px 0 0 0;
+    background-image: url("../Art/Kenney/Icons/d4.png");
+    -unity-background-image-tint-color: var(--cream);
+    color: var(--ink);
+    font-size: 26px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.dice-total {
+    padding: 0;
+    color: rgb(255, 214, 92);
+    font-size: 28px;
+    -unity-font-style: bold;
+}
+
+.combat-summary {
+    margin-top: 6px;
+    margin-bottom: 8px;
+}
