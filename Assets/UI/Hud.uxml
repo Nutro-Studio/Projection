@@ -1,0 +1,70 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="Hud.uss" />
+    <ui:VisualElement name="hud-root" class="hud-root" picking-mode="Ignore">
+        <ui:VisualElement name="province-labels" class="layer" picking-mode="Ignore" />
+
+        <ui:VisualElement name="top-bar" class="top-bar">
+            <ui:VisualElement name="player-flag" class="icon icon--flag" />
+            <ui:Label name="player-label" class="top-text top-text--strong" />
+            <ui:VisualElement class="icon icon--gold" />
+            <ui:Label name="gold-label" class="top-text" />
+            <ui:VisualElement class="icon icon--vp" />
+            <ui:Label name="vp-label" class="top-text" />
+            <ui:VisualElement class="icon icon--turn top-end" />
+            <ui:Label name="turn-label" class="top-text top-text--last" />
+        </ui:VisualElement>
+
+        <ui:Label name="ruleset-banner" class="banner" picking-mode="Ignore" />
+
+        <ui:VisualElement name="bottom-row" class="bottom-row" picking-mode="Ignore">
+            <ui:VisualElement name="province-panel" class="card card--light province-panel">
+                <ui:Label name="province-name" class="card-title" />
+                <ui:Label name="province-owner" class="card-text" />
+                <ui:VisualElement class="info-row">
+                    <ui:VisualElement class="icon icon--small icon--pawn icon--dark" />
+                    <ui:Label name="province-units" class="card-text" />
+                </ui:VisualElement>
+                <ui:VisualElement class="info-row">
+                    <ui:VisualElement class="icon icon--small icon--fort icon--dark" />
+                    <ui:Label name="province-fort" class="card-text" />
+                </ui:VisualElement>
+                <ui:Button name="buy-button" class="action-button" focusable="false" />
+                <ui:Button name="move-button" text="Move army" class="action-button" focusable="false" />
+            </ui:VisualElement>
+            <ui:VisualElement class="spacer" picking-mode="Ignore" />
+            <ui:VisualElement class="end-turn-group" picking-mode="Ignore">
+                <ui:Label name="status-label" class="status" picking-mode="Ignore" />
+                <ui:Button name="end-turn-button" text="End turn (Space)" class="action-button action-button--primary" focusable="false" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="combat-overlay" class="layer overlay">
+            <ui:VisualElement class="card card--dark combat-card">
+                <ui:Label name="combat-title" class="card-title" />
+                <ui:VisualElement class="dice-row">
+                    <ui:Label text="Attacker" class="dice-side" />
+                    <ui:Label name="attacker-die-1" class="die" />
+                    <ui:Label name="attacker-die-2" class="die" />
+                    <ui:Label name="attacker-die-3" class="die" />
+                    <ui:Label name="attacker-total" class="dice-total" />
+                </ui:VisualElement>
+                <ui:VisualElement class="dice-row">
+                    <ui:Label text="Defender" class="dice-side" />
+                    <ui:Label name="defender-die-1" class="die" />
+                    <ui:Label name="defender-die-2" class="die" />
+                    <ui:Label name="defender-die-3" class="die" />
+                    <ui:Label name="defender-total" class="dice-total" />
+                </ui:VisualElement>
+                <ui:Label name="combat-summary" class="card-text combat-summary" />
+                <ui:Button name="combat-continue" text="Continue (Space)" class="action-button action-button--primary" focusable="false" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="victory-overlay" class="layer overlay">
+            <ui:VisualElement class="card card--dark combat-card">
+                <ui:Label text="Victory" class="card-title" />
+                <ui:Label name="victory-label" class="card-text" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

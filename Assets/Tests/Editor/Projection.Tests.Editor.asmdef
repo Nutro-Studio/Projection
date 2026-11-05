@@ -3,6 +3,7 @@
   "rootNamespace": "",
   "references": [
     "Projection.Core",
+    "Projection.Presentation",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner"
   ],

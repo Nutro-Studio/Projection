@@ -1,0 +1,17 @@
+{
+  "name": "Projection.Presentation",
+  "rootNamespace": "",
+  "references": [
+    "Projection.Core",
+    "Unity.InputSystem"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
