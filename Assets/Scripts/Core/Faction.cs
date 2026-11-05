@@ -1,33 +1,29 @@
-using Projection.Core.Economy;
+using Core.Combat;
+using Core.Crisis;
+using Core.Economy;
 
-namespace Projection.Core
+namespace Core
 {
-    public enum FactionArchetype
-    {
-        Militants,
-        Zealots,
-        Guilds,
-        Guerrillas
-    }
-
+    /// <summary>A player's faction: mutable runtime state (treasury, VP) plus the ruleset it currently plays by.</summary>
     public class Faction
     {
         public int Id { get; }
         public string Name { get; }
 
-        // Not readonly: Ruleset Shift changes the archetype at runtime.
-        public FactionArchetype Archetype { get; set; }
+        // Not readonly: Ruleset Shift swaps the ruleset at runtime.
+        public IFactionRuleset Ruleset { get; set; }
 
         public Treasury Treasury { get; }
         public int VictoryPoints { get; set; }
 
-        public bool IsLanded => Archetype == FactionArchetype.Militants || Archetype == FactionArchetype.Zealots;
+        public FactionType Archetype => Ruleset.Archetype;
+        public bool IsLanded => Ruleset.IsLanded;
 
-        public Faction(int id, string name, FactionArchetype archetype, int startingGold)
+        public Faction(int id, string name, IFactionRuleset ruleset, int startingGold)
         {
             Id = id;
             Name = name;
-            Archetype = archetype;
+            Ruleset = ruleset;
             Treasury = new Treasury(startingGold);
         }
 

@@ -1,4 +1,4 @@
-namespace Projection.Core.Map
+namespace Core.Map
 {
     /// <summary>
     /// The 21-province continent: a 7x3 grid, 4-neighbour adjacency.

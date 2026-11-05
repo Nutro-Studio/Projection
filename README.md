@@ -30,19 +30,22 @@
 
 ```
 Assets/
-  Scenes/Prototype.unity        ігрова сцена прототипу
-  Scripts/Core/                 ігрова логіка на чистому C# (без UnityEngine)
+  Scenes/Prototype.unity        ігрова сцена прототипу (економіка, карта, рух, бій)
+  Scenes/Prototype_CombatTest   тестова сцена бойової системи
+  Scripts/Core/                 ігрова логіка на чистому C#
+    Combat/                     Root 3d4: ICombatService, RootCombatService, CombatCoordinator
+    Crisis/                     Ruleset Shift: CrisisDirector, IFactionRuleset
     Economy/                    Treasury, EconomyRules, EconomyService
     Map/                        Province, ProvinceGraph, StandardMap
     Units/                      Unit, MovementService
-    Combat/                     ICombatResolver, PlaceholderCombatResolver
     Turns/                      TurnManager
     GameState.cs, Match.cs      стан партії та збирання систем докупи
   Scripts/Prototype/            тимчасовий IMGUI-інтерфейс (EconomyPrototype)
-  Tests/EditMode/               NUnit-тести логіки
+  Tests/Editor/                 NUnit-тести логіки (EditMode)
+docs/                           правила архітектури та гайд з тестування
 ```
 
-Логіка в `Core` не залежить від Unity, тому її можна тестувати окремо, а UI лише читає стан і викликає команди.
+Логіка в `Core` не залежить від Unity, тому її можна тестувати окремо, а UI лише читає стан і викликає команди. Правила коду описані в `docs/architecture_engineering_guidelines.md`.
 
 ## Реалізовані системи
 
@@ -53,10 +56,12 @@ Assets/
 - **Рух**: лише в сусідню провінцію, кожен юніт раз за хід, лише у фазі руху. Військо захоплює порожню чужу провінцію, місіонер не захоплює. Сторона з більшими втратами відступає в сусідню свою провінцію, а якщо такої немає, гине.
 - **Ходи**: Upkeep → Actions → Movement → Scoring, гравці ходять по черзі.
 
+- **Бій**: рух передає зіткнення в `ICombatService` (`RootCombatService`), бонус форту береться з `IFactionRuleset.ReceivesFortificationBonus` захисника. Якщо гарнізон знищено повністю, атакуючий займає провінцію.
+
 ### Точки інтеграції
 
-- `ICombatResolver`: інтерфейс бойової системи. `PlaceholderCombatResolver` є тимчасовою реалізацією 3d4 і замінюється справжнім модулем бою (`new Match(combatResolver)`).
-- `MovementService.ProvinceCaptured`, `TurnManager.TurnEnding`: події для нарахування VP та перевірки кризи (< 3 провінцій).
+- `Faction.Ruleset`: поточний `IFactionRuleset` фракції; заміна рулсету змінює дохід і бонуси без зміни іншого коду.
+- `MovementService.ProvinceCaptured`, `MovementService.CombatResolved`, `TurnManager.TurnEnding`: події для нарахування VP, UI бою та перевірки кризи (< 3 провінцій).
 - `GameState.Log`: текстовий журнал подій для UI.
 
 ## Тести

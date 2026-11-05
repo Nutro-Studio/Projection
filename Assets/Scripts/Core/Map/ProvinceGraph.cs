@@ -1,24 +1,23 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
-namespace Projection.Core.Map
+namespace Core.Map
 {
-    /// <summary>Undirected adjacency graph of provinces.</summary>
+    /// <summary>Undirected adjacency graph of provinces. Province ids are dense indices 0..Count-1.</summary>
     public class ProvinceGraph
     {
-        private readonly Dictionary<int, Province> _provinces = new Dictionary<int, Province>();
-        private readonly Dictionary<int, HashSet<int>> _edges = new Dictionary<int, HashSet<int>>();
+        private readonly List<Province> _provinces = new List<Province>();
+        private readonly List<List<Province>> _neighbors = new List<List<Province>>();
 
-        public IEnumerable<Province> Provinces => _provinces.Values;
+        public IReadOnlyList<Province> Provinces => _provinces;
         public int Count => _provinces.Count;
 
         public Province Add(Province province)
         {
-            if (_provinces.ContainsKey(province.Id))
-                throw new ArgumentException($"Province id {province.Id} already exists.");
-            _provinces.Add(province.Id, province);
-            _edges.Add(province.Id, new HashSet<int>());
+            if (province.Id != _provinces.Count)
+                throw new ArgumentException($"Province ids must be added in order; expected {_provinces.Count}, got {province.Id}.");
+            _provinces.Add(province);
+            _neighbors.Add(new List<Province>(4));
             return province;
         }
 
@@ -27,34 +26,41 @@ namespace Projection.Core.Map
         public void Connect(int a, int b)
         {
             if (a == b) throw new ArgumentException("A province cannot border itself.");
-            if (!_provinces.ContainsKey(a) || !_provinces.ContainsKey(b))
+            if (a < 0 || b < 0 || a >= Count || b >= Count)
                 throw new ArgumentException($"Unknown province in edge {a}-{b}.");
-            _edges[a].Add(b);
-            _edges[b].Add(a);
+            if (AreAdjacent(_provinces[a], _provinces[b])) return;
+            _neighbors[a].Add(_provinces[b]);
+            _neighbors[b].Add(_provinces[a]);
         }
 
-        public bool AreAdjacent(Province a, Province b) =>
-            a != null && b != null && _edges.TryGetValue(a.Id, out var n) && n.Contains(b.Id);
+        public bool AreAdjacent(Province a, Province b) => a != null && b != null && _neighbors[a.Id].Contains(b);
 
-        public IEnumerable<Province> Neighbors(Province province) => _edges[province.Id].Select(id => _provinces[id]);
+        public IReadOnlyList<Province> Neighbors(Province province) => _neighbors[province.Id];
 
-        public IEnumerable<Province> ControlledBy(Faction faction) => _provinces.Values.Where(p => p.Owner == faction);
+        public int CountControlledBy(Faction faction)
+        {
+            int count = 0;
+            for (int i = 0; i < _provinces.Count; i++)
+            {
+                if (_provinces[i].Owner == faction) count++;
+            }
 
-        public int CountControlledBy(Faction faction) => _provinces.Values.Count(p => p.Owner == faction);
+            return count;
+        }
 
         /// <summary>True when every province can be reached from every other one.</summary>
-        public bool IsConnected()
-        {
-            if (_provinces.Count == 0) return true;
-            return Reachable(_provinces.Values.First(), _ => true).Count == _provinces.Count;
-        }
+        public bool IsConnected() => Count == 0 || CountReachable(_provinces[0], null, false) == Count;
 
         /// <summary>True when all provinces owned by the faction form one connected region.</summary>
         public bool IsTerritoryContiguous(Faction faction)
         {
-            var owned = ControlledBy(faction).ToList();
-            if (owned.Count == 0) return true;
-            return Reachable(owned[0], p => p.Owner == faction).Count == owned.Count;
+            for (int i = 0; i < _provinces.Count; i++)
+            {
+                if (_provinces[i].Owner == faction)
+                    return CountReachable(_provinces[i], faction, true) == CountControlledBy(faction);
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -63,24 +69,28 @@ namespace Projection.Core.Map
         /// </summary>
         public List<Province> ShortestPath(Province from, Province to, Func<Province, bool> canEnter = null)
         {
-            canEnter = canEnter ?? (_ => true);
-            var previous = new Dictionary<int, int> { [from.Id] = from.Id };
-            var queue = new Queue<int>();
-            queue.Enqueue(from.Id);
+            var previous = new int[Count];
+            for (int i = 0; i < previous.Length; i++) previous[i] = -1;
+            previous[from.Id] = from.Id;
 
+            var queue = new Queue<int>(Count);
+            queue.Enqueue(from.Id);
             while (queue.Count > 0)
             {
                 int current = queue.Dequeue();
                 if (current == to.Id) break;
-                foreach (int next in _edges[current])
+
+                var neighbors = _neighbors[current];
+                for (int i = 0; i < neighbors.Count; i++)
                 {
-                    if (previous.ContainsKey(next) || !canEnter(_provinces[next])) continue;
+                    int next = neighbors[i].Id;
+                    if (previous[next] != -1 || (canEnter != null && !canEnter(neighbors[i]))) continue;
                     previous[next] = current;
                     queue.Enqueue(next);
                 }
             }
 
-            if (!previous.ContainsKey(to.Id)) return null;
+            if (previous[to.Id] == -1) return null;
 
             var path = new List<Province>();
             for (int id = to.Id; ; id = previous[id])
@@ -88,25 +98,33 @@ namespace Projection.Core.Map
                 path.Add(_provinces[id]);
                 if (id == from.Id) break;
             }
+
             path.Reverse();
             return path;
         }
 
-        private HashSet<int> Reachable(Province start, Func<Province, bool> filter)
+        private int CountReachable(Province start, Faction owner, bool filterByOwner)
         {
-            var seen = new HashSet<int> { start.Id };
-            var stack = new Stack<int>();
+            var seen = new bool[Count];
+            var stack = new Stack<int>(Count);
+            seen[start.Id] = true;
             stack.Push(start.Id);
+            int reached = 1;
+
             while (stack.Count > 0)
             {
-                foreach (int next in _edges[stack.Pop()])
+                var neighbors = _neighbors[stack.Pop()];
+                for (int i = 0; i < neighbors.Count; i++)
                 {
-                    if (seen.Contains(next) || !filter(_provinces[next])) continue;
-                    seen.Add(next);
-                    stack.Push(next);
+                    var next = neighbors[i];
+                    if (seen[next.Id] || (filterByOwner && next.Owner != owner)) continue;
+                    seen[next.Id] = true;
+                    stack.Push(next.Id);
+                    reached++;
                 }
             }
-            return seen;
+
+            return reached;
         }
     }
 }

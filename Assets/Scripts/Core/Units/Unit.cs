@@ -1,6 +1,6 @@
-using Projection.Core.Map;
+using Core.Map;
 
-namespace Projection.Core.Units
+namespace Core.Units
 {
     public enum UnitType
     {

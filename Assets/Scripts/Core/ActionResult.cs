@@ -1,4 +1,4 @@
-namespace Projection.Core
+namespace Core
 {
     /// <summary>Outcome of a player action: either success or a human-readable reason it was rejected.</summary>
     public readonly struct ActionResult

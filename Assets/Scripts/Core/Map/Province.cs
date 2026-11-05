@@ -1,4 +1,4 @@
-namespace Projection.Core.Map
+namespace Core.Map
 {
     public class Province
     {

@@ -1,13 +1,13 @@
-using System.Collections.Generic;
-using System.Linq;
+using Core;
+using Core.Combat;
+using Core.Map;
+using Core.Turns;
+using Core.Units;
 using NUnit.Framework;
-using Projection.Core;
-using Projection.Core.Combat;
-using Projection.Core.Turns;
-using Projection.Core.Units;
 
-namespace Projection.Tests
+namespace Tests.Editor
 {
+    [TestFixture]
     public class MapTests
     {
         [Test]
@@ -18,7 +18,7 @@ namespace Projection.Tests
             Assert.AreEqual(21, map.Count);
             Assert.AreEqual(8, map.CountControlledBy(match.Militants));
             Assert.AreEqual(8, map.CountControlledBy(match.Zealots));
-            Assert.AreEqual(5, map.Provinces.Count(p => p.Owner == null));
+            Assert.AreEqual(5, map.CountControlledBy(null));
         }
 
         [Test]
@@ -47,19 +47,28 @@ namespace Projection.Tests
             var match = new Match();
             var path = match.State.Map.ShortestPath(match.Province(1, 1), match.Province(5, 1));
             Assert.AreEqual(5, path.Count);
-            Assert.AreEqual(match.Province(1, 1), path.First());
-            Assert.AreEqual(match.Province(5, 1), path.Last());
+            Assert.AreEqual(match.Province(1, 1), path[0]);
+            Assert.AreEqual(match.Province(5, 1), path[path.Count - 1]);
         }
     }
 
+    [TestFixture]
     public class MovementTests
     {
-        /// <summary>Returns the given die faces in order, then repeats the last one.</summary>
-        private static PlaceholderCombatResolver Dice(params int[] faces)
+        private static Match MatchWithDice(params (int, int, int)[] rolls) =>
+            new Match(new RootCombatService(new FixedDiceRoller(rolls)));
+
+        private static Province Staging(Match match, Faction owner, int x, int y, int units)
         {
-            var queue = new Queue<int>(faces);
-            int last = faces.Last();
-            return new PlaceholderCombatResolver(_ => queue.Count > 0 ? queue.Dequeue() : last);
+            var province = match.Province(x, y);
+            province.Owner = owner;
+            for (int i = 0; i < units; i++) match.State.SpawnUnit(UnitType.Military, owner, province);
+            return province;
+        }
+
+        private static void AddDefenders(Match match, Faction owner, Province province, int units)
+        {
+            for (int i = 0; i < units; i++) match.State.SpawnUnit(UnitType.Military, owner, province);
         }
 
         [Test]
@@ -68,7 +77,7 @@ namespace Projection.Tests
             var match = new Match();
             var result = match.Movement.Move(match.Militants, match.Province(1, 1), match.Province(3, 1), 1);
             Assert.IsFalse(result.Success);
-            Assert.AreEqual(2, match.State.UnitsOf(match.Militants, match.Province(1, 1)).Count());
+            Assert.AreEqual(2, match.State.CountUnits(match.Militants, match.Province(1, 1)));
         }
 
         [Test]
@@ -110,79 +119,72 @@ namespace Projection.Tests
         }
 
         [Test]
-        public void Attack_Won_CapturesProvince()
+        public void Attack_WipesOutGarrison_CapturesProvince()
         {
-            // Attacker 12 vs defender 3. 3 attackers deal min(12, 3)=3 hits -> both defenders die;
-            // 2 defenders deal min(3, 2)=2 hits -> 1 attacker survives and takes the province.
-            var match = new Match(Dice(4, 4, 4, 1, 1, 1));
+            // 12 vs 3: 3 attackers deal 3 hits (2 defenders die), 2 defenders deal 2 hits -> 1 attacker takes the province.
+            var match = MatchWithDice((4, 4, 4), (1, 1, 1));
             var lumenVale = match.Province(4, 0);
-            match.State.SpawnUnit(UnitType.Military, match.Zealots, lumenVale);
-            var ashenPass = MilitantStaging(match, 3);
+            AddDefenders(match, match.Zealots, lumenVale, 1);
+            var ashenPass = Staging(match, match.Militants, 3, 0, 3);
 
             var result = match.Movement.Move(match.Militants, ashenPass, lumenVale, 3);
 
             Assert.IsTrue(result.Success, result.Message);
             Assert.AreEqual(match.Militants, lumenVale.Owner);
-            Assert.AreEqual(0, match.State.UnitsOf(match.Zealots, lumenVale).Count());
-            Assert.AreEqual(1, match.State.UnitsOf(match.Militants, lumenVale).Count());
+            Assert.AreEqual(0, match.State.CountUnits(match.Zealots, lumenVale));
+            Assert.AreEqual(1, match.State.CountUnits(match.Militants, lumenVale));
         }
 
         [Test]
         public void Attack_Won_SurvivingDefendersRetreatToFriendlyNeighbour()
         {
-            // 5 attackers vs 6 defenders, attacker 12 vs defender 3: attacker deals 5, defender deals 3
-            // -> defenders keep 1 and retreat (higher losses), attackers keep 2.
-            var match = new Match(Dice(4, 4, 4, 1, 1, 1));
+            // 5 attackers vs 6 defenders, 12 vs 3: defenders lose 5, attackers lose 3 -> defenders retreat.
+            var match = MatchWithDice((4, 4, 4), (1, 1, 1));
             var lumenVale = match.Province(4, 0);
-            for (int i = 0; i < 5; i++) match.State.SpawnUnit(UnitType.Military, match.Zealots, lumenVale);
-            var ashenPass = MilitantStaging(match, 5);
+            AddDefenders(match, match.Zealots, lumenVale, 5);
+            var ashenPass = Staging(match, match.Militants, 3, 0, 5);
 
             match.Movement.Move(match.Militants, ashenPass, lumenVale, 5);
 
             Assert.AreEqual(match.Militants, lumenVale.Owner);
-            Assert.AreEqual(2, match.State.UnitsOf(match.Militants, lumenVale).Count());
-            Assert.AreEqual(0, match.State.UnitsOf(match.Zealots, lumenVale).Count());
-            Assert.AreEqual(1, match.State.UnitsOf(match.Zealots, match.Province(5, 0)).Count());
+            Assert.AreEqual(2, match.State.CountUnits(match.Militants, lumenVale));
+            Assert.AreEqual(0, match.State.CountUnits(match.Zealots, lumenVale));
+            Assert.AreEqual(1, match.State.CountUnits(match.Zealots, match.Province(5, 0)));
         }
 
         [Test]
         public void Attack_Tie_DefenderHolds_AttackersStayHome()
         {
-            // Both roll 3 -> each deals 3 hits: 3 losses each, the tie goes to the defender.
-            var match = new Match(Dice(1));
+            // Both roll 3 -> 3 losses each; the tie goes to the defender.
+            var match = MatchWithDice((1, 1, 1));
             var lumenVale = match.Province(4, 0);
-            for (int i = 0; i < 3; i++) match.State.SpawnUnit(UnitType.Military, match.Zealots, lumenVale);
-            var ashenPass = MilitantStaging(match, 4);
+            AddDefenders(match, match.Zealots, lumenVale, 3);
+            var ashenPass = Staging(match, match.Militants, 3, 0, 4);
 
             match.Movement.Move(match.Militants, ashenPass, lumenVale, 4);
 
             Assert.AreEqual(match.Zealots, lumenVale.Owner);
-            Assert.AreEqual(1, match.State.UnitsOf(match.Zealots, lumenVale).Count());
-            Assert.AreEqual(1, match.State.UnitsOf(match.Militants, ashenPass).Count());
-        }
-
-        private static Projection.Core.Map.Province MilitantStaging(Match match, int units)
-        {
-            var ashenPass = match.Province(3, 0);
-            ashenPass.Owner = match.Militants;
-            for (int i = 0; i < units; i++) match.State.SpawnUnit(UnitType.Military, match.Militants, ashenPass);
-            return ashenPass;
+            Assert.AreEqual(1, match.State.CountUnits(match.Zealots, lumenVale));
+            Assert.AreEqual(1, match.State.CountUnits(match.Militants, ashenPass));
         }
 
         [Test]
-        public void Fortification_GivesMilitantDefenders2Hp()
+        public void Attack_OnFortifiedMilitants_UsesFortBonus()
         {
-            var resolver = Dice(4, 4, 4, 1, 1, 1);
-            var outcome = resolver.Resolve(new CombatContext
-            {
-                AttackingUnits = new Unit[3],
-                DefendingUnits = new Unit[2],
-                DefenderFortified = true
-            });
-            Assert.AreEqual(1, outcome.DefenderLosses); // 3 hits vs 2 HP units
+            // 3 Zealots hit Bastion (fort, 2 Militants at 2 HP) for 3: only 1 defender dies; Zealots lose 2 and retreat.
+            var match = MatchWithDice((4, 4, 4), (1, 1, 1));
+            var bastion = match.Province(1, 1);
+            var rustford = Staging(match, match.Zealots, 2, 1, 3);
+
+            match.Movement.Move(match.Zealots, rustford, bastion, 3);
+
+            Assert.AreEqual(match.Militants, bastion.Owner);
+            Assert.AreEqual(1, match.State.CountUnits(match.Militants, bastion));
+            Assert.AreEqual(1, match.State.CountUnits(match.Zealots, rustford));
         }
     }
 
+    [TestFixture]
     public class TurnTests
     {
         [Test]
@@ -219,10 +221,12 @@ namespace Projection.Tests
             turns.StartGame();
             turns.AdvancePhase();
             Assert.IsTrue(turns.Move(match.Province(1, 1), match.Province(1, 0), 1).Success);
-            turns.AdvancePhase(); // Zealots
-            turns.AdvancePhase();
-            turns.AdvancePhase(); // Militants again
-            turns.AdvancePhase();
+
+            turns.AdvancePhase(); // Zealots: Actions
+            turns.AdvancePhase(); // Zealots: Movement
+            turns.AdvancePhase(); // Militants: Actions
+            turns.AdvancePhase(); // Militants: Movement
+
             Assert.IsTrue(turns.Move(match.Province(1, 0), match.Province(1, 1), 1).Success);
             Assert.AreEqual(2, turns.Round);
         }

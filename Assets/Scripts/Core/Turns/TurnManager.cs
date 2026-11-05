@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using Projection.Core.Economy;
-using Projection.Core.Map;
-using Projection.Core.Units;
+using Core.Economy;
+using Core.Map;
+using Core.Units;
 
-namespace Projection.Core.Turns
+namespace Core.Turns
 {
     public enum TurnPhase
     {
@@ -74,7 +74,12 @@ namespace Projection.Core.Turns
         private void BeginTurn()
         {
             Phase = TurnPhase.Upkeep;
-            foreach (var unit in _state.UnitsOf(Current)) unit.HasMovedThisTurn = false;
+            var units = _state.Units;
+            for (int i = 0; i < units.Count; i++)
+            {
+                if (units[i].Owner == Current) units[i].HasMovedThisTurn = false;
+            }
+
             _state.Write($"--- Round {Round}: {Current}'s turn ---");
             _economy.CollectIncome(Current);
 

@@ -1,31 +1,40 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using Projection.Core.Combat;
-using Projection.Core.Map;
+using Core.Combat;
+using Core.Map;
 
-namespace Projection.Core.Units
+namespace Core.Units
 {
     /// <summary>
-    /// Validates and executes unit movement between adjacent provinces. Entering enemy troops triggers combat
-    /// through <see cref="ICombatResolver"/>; entering an undefended foreign province with military captures it.
+    /// Validates and executes unit movement between adjacent provinces. Entering enemy troops hands the battle to
+    /// <see cref="ICombatService"/>; entering an undefended foreign province with military captures it.
     /// </summary>
     public class MovementService
     {
         private readonly GameState _state;
-        private readonly ICombatResolver _combat;
+        private readonly ICombatService _combat;
 
         /// <summary>(province, previous owner, new owner). Hook for VP scoring and the crisis check.</summary>
         public event Action<Province, Faction, Faction> ProvinceCaptured;
 
-        public MovementService(GameState state, ICombatResolver combat)
+        public event Action<CombatResult> CombatResolved;
+
+        public MovementService(GameState state, ICombatService combat)
         {
             _state = state;
-            _combat = combat;
+            _combat = combat ?? throw new ArgumentNullException(nameof(combat));
         }
 
-        public List<Unit> ReadyUnits(Faction faction, Province province, UnitType type) =>
-            _state.UnitsOf(faction, province).Where(u => u.Type == type && !u.HasMovedThisTurn).ToList();
+        public List<Unit> ReadyUnits(Faction faction, Province province, UnitType type)
+        {
+            var units = _state.UnitsIn(province, faction, type);
+            for (int i = units.Count - 1; i >= 0; i--)
+            {
+                if (units[i].HasMovedThisTurn) units.RemoveAt(i);
+            }
+
+            return units;
+        }
 
         public ActionResult CanMove(Faction faction, Province from, Province to, int count, UnitType type = UnitType.Military)
         {
@@ -50,14 +59,15 @@ namespace Projection.Core.Units
             var check = CanMove(faction, from, to, count, type);
             if (!check.Success) return check;
 
-            var movers = ReadyUnits(faction, from, type).Take(count).ToList();
-            foreach (var unit in movers) unit.HasMovedThisTurn = true;
+            var movers = ReadyUnits(faction, from, type);
+            movers.RemoveRange(count, movers.Count - count);
+            for (int i = 0; i < movers.Count; i++) movers[i].HasMovedThisTurn = true;
 
             var defender = _state.HostileOccupant(to, faction);
             if (defender != null)
                 return Attack(faction, defender, from, to, movers);
 
-            foreach (var unit in movers) unit.Location = to;
+            for (int i = 0; i < movers.Count; i++) movers[i].Location = to;
             string message = $"{faction}: moved {count} {type} {from} -> {to}";
             _state.Write(message);
 
@@ -69,31 +79,28 @@ namespace Projection.Core.Units
 
         private ActionResult Attack(Faction attacker, Faction defender, Province from, Province to, List<Unit> attackers)
         {
-            var defenders = _state.UnitsOf(defender, to).Where(u => u.IsCombatant).ToList();
+            var defenders = _state.UnitsIn(to, defender, UnitType.Military);
 
-            var outcome = _combat.Resolve(new CombatContext
-            {
-                Province = to,
-                Attacker = attacker,
-                Defender = defender,
-                AttackingUnits = attackers,
-                DefendingUnits = defenders,
-                DefenderFortified = to.HasFortification && to.Owner == defender &&
-                                    defender.Archetype == FactionArchetype.Militants
-            });
+            var result = _combat.ResolveBattle(new CombatContext(
+                Attackers: ToCombatUnits(attackers, attacker),
+                Defenders: ToCombatUnits(defenders, defender),
+                DefenderHasFort: to.HasFortification && to.Owner == defender,
+                DefenderReceivesFortBonus: defender.Ruleset.ReceivesFortificationBonus));
+            CombatResolved?.Invoke(result);
 
-            int attackerLosses = Math.Min(outcome.AttackerLosses, attackers.Count);
-            int defenderLosses = Math.Min(outcome.DefenderLosses, defenders.Count);
-            RemoveCasualties(attackers, attackerLosses);
-            RemoveCasualties(defenders, defenderLosses);
+            int attackersBefore = attackers.Count;
+            int defendersBefore = defenders.Count;
+            RemoveCasualties(attackers, result.SurvivingAttackers);
+            RemoveCasualties(defenders, result.SurvivingDefenders);
 
-            _state.Write($"Battle for {to}: {attacker} ({attackers.Count + attackerLosses}) vs {defender} " +
-                         $"({defenders.Count + defenderLosses}). {outcome.Description}. " +
-                         $"Losses {attacker} -{attackerLosses}, {defender} -{defenderLosses}");
+            _state.Write($"Battle for {to}: {attacker} ({attackersBefore}) vs {defender} ({defendersBefore}). " +
+                         $"3d4 {result.AttackerRawSum} vs {result.DefenderRawSum}, " +
+                         $"hits {result.AttackerEffectiveHits}/{result.DefenderEffectiveHits}. " +
+                         $"Losses {attacker} -{attackersBefore - attackers.Count}, {defender} -{defendersBefore - defenders.Count}");
 
-            // The side with higher losses retreats; ties go to the defender.
-            bool attackerWins = attackers.Count > 0 && (defenders.Count == 0 || defenderLosses > attackerLosses);
-            if (!attackerWins)
+            // A wiped-out garrison cannot hold the province, even on a casualty tie.
+            bool attackerTakesProvince = attackers.Count > 0 && (defenders.Count == 0 || !result.AttackerMustRetreat);
+            if (!attackerTakesProvince)
             {
                 // Attackers never left: survivors stay in the province they attacked from.
                 string held = $"{defender} holds {to}";
@@ -103,24 +110,32 @@ namespace Projection.Core.Units
 
             if (defenders.Count > 0) Retreat(defender, to, defenders);
 
-            foreach (var unit in attackers) unit.Location = to;
+            for (int i = 0; i < attackers.Count; i++) attackers[i].Location = to;
             if (to.Owner != attacker) Capture(attacker, to);
             return ActionResult.Ok($"{attacker} takes {to}");
         }
 
         private void Retreat(Faction faction, Province from, List<Unit> units)
         {
-            var refuge = _state.Map.Neighbors(from)
-                .FirstOrDefault(p => p.Owner == faction && _state.HostileOccupant(p, faction) == null);
+            Province refuge = null;
+            var neighbors = _state.Map.Neighbors(from);
+            for (int i = 0; i < neighbors.Count; i++)
+            {
+                if (neighbors[i].Owner == faction && _state.HostileOccupant(neighbors[i], faction) == null)
+                {
+                    refuge = neighbors[i];
+                    break;
+                }
+            }
 
             if (refuge == null)
             {
-                foreach (var unit in units) _state.RemoveUnit(unit);
+                for (int i = 0; i < units.Count; i++) _state.RemoveUnit(units[i]);
                 _state.Write($"{faction}: {units.Count} unit(s) had nowhere to retreat and were destroyed");
                 return;
             }
 
-            foreach (var unit in units) unit.Location = refuge;
+            for (int i = 0; i < units.Count; i++) units[i].Location = refuge;
             _state.Write($"{faction}: {units.Count} unit(s) retreated {from} -> {refuge}");
         }
 
@@ -130,19 +145,45 @@ namespace Projection.Core.Units
             province.Owner = newOwner;
 
             // Undefended non-combat units (e.g. missionaries) of the old owner are lost with the province.
-            foreach (var unit in _state.UnitsIn(province).Where(u => u.Owner != newOwner && !u.IsCombatant).ToList())
-                _state.RemoveUnit(unit);
+            var present = _state.UnitsIn(province);
+            for (int i = 0; i < present.Count; i++)
+            {
+                if (present[i].Owner != newOwner && !present[i].IsCombatant) _state.RemoveUnit(present[i]);
+            }
 
             _state.Write($"{newOwner}: captured {province} from {(previous != null ? previous.Name : "neutrals")}");
             ProvinceCaptured?.Invoke(province, previous, newOwner);
         }
 
-        private void RemoveCasualties(List<Unit> units, int losses)
+        private static List<CombatUnit> ToCombatUnits(List<Unit> units, Faction owner)
         {
-            for (int i = 0; i < losses; i++)
+            var list = new List<CombatUnit>(units.Count);
+            for (int i = 0; i < units.Count; i++)
             {
-                _state.RemoveUnit(units[units.Count - 1]);
-                units.RemoveAt(units.Count - 1);
+                list.Add(new CombatUnit(units[i].Id, owner.Archetype, MaxHp: 1, CurrentHp: 1));
+            }
+
+            return list;
+        }
+
+        /// <summary>Removes from the game every unit whose id is missing from the combat survivors.</summary>
+        private void RemoveCasualties(List<Unit> units, IReadOnlyList<CombatUnit> survivors)
+        {
+            for (int i = units.Count - 1; i >= 0; i--)
+            {
+                bool survived = false;
+                for (int s = 0; s < survivors.Count; s++)
+                {
+                    if (survivors[s].Id == units[i].Id)
+                    {
+                        survived = true;
+                        break;
+                    }
+                }
+
+                if (survived) continue;
+                _state.RemoveUnit(units[i]);
+                units.RemoveAt(i);
             }
         }
     }

@@ -1,8 +1,8 @@
-using System.Linq;
-using Projection.Core.Map;
-using Projection.Core.Units;
+using Core.Combat;
+using Core.Map;
+using Core.Units;
 
-namespace Projection.Core.Economy
+namespace Core.Economy
 {
     /// <summary>Income, recruitment, construction and tithes. All gold flows through faction treasuries.</summary>
     public class EconomyService
@@ -14,13 +14,13 @@ namespace Projection.Core.Economy
             _state = state;
         }
 
-        /// <summary>Phase 1: landed factions collect +1 Gold per controlled province. Returns the income.</summary>
+        /// <summary>Phase 1: revenue from the faction's ruleset (landed factions: +1 Gold per province).</summary>
         public int CollectIncome(Faction faction)
         {
-            if (!faction.IsLanded) return 0;
-
             int provinces = _state.Map.CountControlledBy(faction);
-            int income = provinces * EconomyRules.IncomePerProvince;
+            int income = faction.Ruleset.CalculateUpkeepRevenue(provinces);
+            if (income <= 0) return 0;
+
             faction.Treasury.Deposit(income, $"Revenue from {provinces} provinces");
             _state.Write($"{faction}: +{income}G revenue ({provinces} provinces)");
             return income;
@@ -96,12 +96,16 @@ namespace Projection.Core.Economy
         /// </summary>
         public int ApplyChurchTithes(Faction endingFaction)
         {
-            if (endingFaction.Archetype == FactionArchetype.Guerrillas) return 0;
+            if (endingFaction.Archetype == FactionType.Guerrillas) return 0;
 
             int total = 0;
-            foreach (var province in _state.Map.Provinces.Where(p => p.HasChurch && p.ChurchOwner != endingFaction))
+            var provinces = _state.Map.Provinces;
+            for (int i = 0; i < provinces.Count; i++)
             {
-                int units = _state.UnitsOf(endingFaction, province).Count();
+                var province = provinces[i];
+                if (!province.HasChurch || province.ChurchOwner == endingFaction) continue;
+
+                int units = _state.CountUnits(endingFaction, province);
                 if (units == 0) continue;
 
                 int paid = Treasury.Transfer(endingFaction.Treasury, province.ChurchOwner.Treasury,
@@ -109,6 +113,7 @@ namespace Projection.Core.Economy
                 total += paid;
                 if (paid > 0) _state.Write($"{endingFaction}: paid {paid}G tithe to {province.ChurchOwner} in {province}");
             }
+
             return total;
         }
 

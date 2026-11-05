@@ -1,11 +1,13 @@
-using System.Linq;
+using System.Collections.Generic;
+using Core;
+using Core.Combat;
+using Core.Economy;
+using Core.Units;
 using NUnit.Framework;
-using Projection.Core;
-using Projection.Core.Economy;
-using Projection.Core.Units;
 
-namespace Projection.Tests
+namespace Tests.Editor
 {
+    [TestFixture]
     public class TreasuryTests
     {
         [Test]
@@ -23,9 +25,12 @@ namespace Projection.Tests
             var treasury = new Treasury(10);
             treasury.Deposit(8, "income");
             treasury.TrySpend(3, "unit");
+
             Assert.AreEqual(15, treasury.Gold);
-            CollectionAssert.AreEqual(new[] { 8, -3 }, treasury.Ledger.Select(t => t.Amount));
-            Assert.AreEqual(15, treasury.Ledger.Last().BalanceAfter);
+            Assert.AreEqual(2, treasury.Ledger.Count);
+            Assert.AreEqual(8, treasury.Ledger[0].Amount);
+            Assert.AreEqual(-3, treasury.Ledger[1].Amount);
+            Assert.AreEqual(15, treasury.Ledger[1].BalanceAfter);
         }
 
         [Test]
@@ -47,6 +52,7 @@ namespace Projection.Tests
         }
     }
 
+    [TestFixture]
     public class EconomyServiceTests
     {
         private Match _match;
@@ -62,16 +68,24 @@ namespace Projection.Tests
         }
 
         [Test]
+        public void Income_IsZeroForNonLandedRuleset()
+        {
+            _match.Militants.Ruleset = _match.Rulesets[FactionType.Guerrillas];
+            Assert.AreEqual(0, _match.Economy.CollectIncome(_match.Militants));
+            Assert.AreEqual(EconomyRules.StartingGold, _match.Militants.Treasury.Gold);
+        }
+
+        [Test]
         public void Recruit_MilitaryUnit_Costs3GoldAndSpawnsUnit()
         {
             var bastion = _match.Province(1, 1);
-            int before = _match.State.UnitsOf(_match.Militants, bastion).Count();
+            int before = _match.State.CountUnits(_match.Militants, bastion);
 
             var result = _match.Economy.Recruit(_match.Militants, bastion, UnitType.Military);
 
             Assert.IsTrue(result.Success, result.Message);
             Assert.AreEqual(7, _match.Militants.Treasury.Gold);
-            Assert.AreEqual(before + 1, _match.State.UnitsOf(_match.Militants, bastion).Count());
+            Assert.AreEqual(before + 1, _match.State.CountUnits(_match.Militants, bastion));
         }
 
         [Test]
@@ -79,7 +93,7 @@ namespace Projection.Tests
         {
             var sanctum = _match.Province(5, 1);
             Assert.IsFalse(_match.Economy.Recruit(_match.Militants, sanctum, UnitType.Military).Success);
-            Assert.AreEqual(10, _match.Militants.Treasury.Gold);
+            Assert.AreEqual(EconomyRules.StartingGold, _match.Militants.Treasury.Gold);
         }
 
         [Test]
@@ -93,6 +107,7 @@ namespace Projection.Tests
         {
             var bastion = _match.Province(1, 1);
             for (int i = 0; i < 3; i++) _match.Economy.Recruit(_match.Militants, bastion, UnitType.Military);
+
             Assert.AreEqual(1, _match.Militants.Treasury.Gold);
             Assert.IsFalse(_match.Economy.Recruit(_match.Militants, bastion, UnitType.Military).Success);
         }
@@ -134,8 +149,29 @@ namespace Projection.Tests
         public void ChurchTithe_GuerrillasAreExempt()
         {
             _match.State.SpawnUnit(UnitType.Military, _match.Militants, _match.Province(5, 1));
-            _match.Militants.Archetype = FactionArchetype.Guerrillas;
+            _match.Militants.Ruleset = _match.Rulesets[FactionType.Guerrillas];
             Assert.AreEqual(0, _match.Economy.ApplyChurchTithes(_match.Militants));
+        }
+    }
+
+    /// <summary>Returns the queued 3d4 rolls in order (attacker first, then defender), repeating the last one.</summary>
+    internal class FixedDiceRoller : IDiceRoller
+    {
+        private readonly Queue<(int, int, int)> _rolls;
+        private (int, int, int) _last;
+
+        public FixedDiceRoller(params (int, int, int)[] rolls)
+        {
+            _rolls = new Queue<(int, int, int)>(rolls);
+            _last = rolls[rolls.Length - 1];
+        }
+
+        public int RollD4() => Roll3D4().Item1;
+
+        public (int roll1, int roll2, int roll3) Roll3D4()
+        {
+            if (_rolls.Count > 0) _last = _rolls.Dequeue();
+            return _last;
         }
     }
 }

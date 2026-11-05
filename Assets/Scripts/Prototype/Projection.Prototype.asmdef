@@ -1,6 +1,6 @@
 {
     "name": "Projection.Prototype",
-    "rootNamespace": "Projection.Prototype",
+    "rootNamespace": "",
     "references": [
         "Projection.Core"
     ],

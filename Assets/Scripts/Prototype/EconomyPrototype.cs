@@ -1,13 +1,13 @@
 using System.Collections.Generic;
-using System.Linq;
-using Projection.Core;
-using Projection.Core.Economy;
-using Projection.Core.Map;
-using Projection.Core.Turns;
-using Projection.Core.Units;
+using Core;
+using Core.Combat;
+using Core.Economy;
+using Core.Map;
+using Core.Turns;
+using Core.Units;
 using UnityEngine;
 
-namespace Projection.Prototype
+namespace Prototype
 {
     /// <summary>
     /// Playable prototype of the economy / map / movement systems with a throwaway IMGUI front-end.
@@ -106,7 +106,6 @@ namespace Projection.Prototype
             DrawRect(rect, border);
             DrawRect(Inset(rect, 3), Color.Lerp(OwnerColor(p.Owner), Color.black, 0.35f));
 
-            var units = _match.State.UnitsIn(p).ToList();
             var text = new System.Text.StringBuilder();
             text.Append("<b>").Append(p.Name).Append(p.IsCapital ? " (capital)" : "").Append("</b>\n");
             text.Append("<size=10>").Append(p.Owner != null ? p.Owner.Name : "Neutral").Append("</size>\n");
@@ -115,19 +114,27 @@ namespace Projection.Prototype
             if (p.HasChurch) text.Append("[Church] ");
             if (p.HasFortification || p.HasChurch) text.Append('\n');
 
-            foreach (var group in units.GroupBy(u => (u.Owner, u.Type)))
+            var factions = _match.State.Factions;
+            for (int f = 0; f < factions.Count; f++)
             {
-                int ready = group.Count(u => !u.HasMovedThisTurn);
-                string tag = group.Key.Type == UnitType.Military ? "troops" : "missionary";
-                text.Append($"{group.Key.Owner.Name.Substring(0, 3)} {tag} x{group.Count()}");
-                if (group.Key.Owner == current && _match.Turns.Phase == TurnPhase.Movement)
-                    text.Append($" ({ready} ready)");
-                text.Append('\n');
+                AppendUnits(text, p, factions[f], UnitType.Military, "troops", current);
+                AppendUnits(text, p, factions[f], UnitType.Missionary, "missionary", current);
             }
 
             GUI.Label(Inset(rect, 7), text.ToString(), _cellStyle);
 
             if (GUI.Button(rect, GUIContent.none, GUIStyle.none)) OnProvinceClicked(p);
+        }
+
+        private void AppendUnits(System.Text.StringBuilder text, Province p, Faction owner, UnitType type, string tag, Faction current)
+        {
+            var units = _match.State.UnitsIn(p, owner, type);
+            if (units.Count == 0) return;
+
+            text.Append($"{owner.Name.Substring(0, 3)} {tag} x{units.Count}");
+            if (owner == current && _match.Turns.Phase == TurnPhase.Movement)
+                text.Append($" ({_match.Movement.ReadyUnits(owner, p, type).Count} ready)");
+            text.Append('\n');
         }
 
         private bool IsMoveTarget(Province p) =>
@@ -163,8 +170,9 @@ namespace Projection.Prototype
             y += 28;
             GUI.Label(new Rect(x, y, w, 20), $"Treasury: <b>{faction.Treasury.Gold} G</b>     VP: <b>{faction.VictoryPoints}</b>     Provinces: {_match.State.Map.CountControlledBy(faction)}", _labelStyle);
             y += 22;
-            foreach (var other in _match.State.Factions.Where(f => f != faction))
+            foreach (var other in _match.State.Factions)
             {
+                if (other == faction) continue;
                 GUI.Label(new Rect(x, y, w, 18), $"{other}: {other.Treasury.Gold} G, {other.VictoryPoints} VP, {_match.State.Map.CountControlledBy(other)} prov.", _smallStyle);
                 y += 18;
             }
@@ -194,13 +202,13 @@ namespace Projection.Prototype
 
             if (_selected == null) return y;
 
-            y = ActionButton(x, y, w, $"Recruit military unit ({EconomyRules.MilitaryUnitCost} G)", faction, UnitType.Military);
-            if (faction.Archetype == FactionArchetype.Zealots)
-                y = ActionButton(x, y, w, $"Recruit missionary ({EconomyRules.MissionaryCost} G)", faction, UnitType.Missionary);
-            if (faction.Archetype == FactionArchetype.Militants)
-                y = BuildButton(x, y, w, $"Build fortification ({EconomyRules.FortificationCost} G, +{EconomyRules.FortificationVp} VP)", faction, BuildingType.Fortification);
-            if (faction.Archetype == FactionArchetype.Zealots)
-                y = BuildButton(x, y, w, $"Build church ({EconomyRules.ChurchCost} G, +{EconomyRules.ChurchVp} VP)", faction, BuildingType.Church);
+            y = ActionButton(x, y, w, $"Recruit military unit ({EconomyRules.UnitCost(UnitType.Military)} G)", faction, UnitType.Military);
+            if (faction.Archetype == FactionType.Zealots)
+                y = ActionButton(x, y, w, $"Recruit missionary ({EconomyRules.UnitCost(UnitType.Missionary)} G)", faction, UnitType.Missionary);
+            if (faction.Archetype == FactionType.Militants)
+                y = BuildButton(x, y, w, $"Build fortification ({EconomyRules.BuildingCost(BuildingType.Fortification)} G, +{EconomyRules.BuildingVp(BuildingType.Fortification)} VP)", faction, BuildingType.Fortification);
+            if (faction.Archetype == FactionType.Zealots)
+                y = BuildButton(x, y, w, $"Build church ({EconomyRules.BuildingCost(BuildingType.Church)} G, +{EconomyRules.BuildingVp(BuildingType.Church)} VP)", faction, BuildingType.Church);
             return y;
         }
 
@@ -254,7 +262,7 @@ namespace Projection.Prototype
             y += 32;
 
             GUI.Label(new Rect(x, y, w, 36),
-                ready > 0 ? "Click a green neighbour to move. Entering enemy troops starts a battle (placeholder 3d4)."
+                ready > 0 ? "Click a green neighbour to move. Entering enemy troops starts a battle (Root 3d4)."
                           : "No units here can move this turn.", _smallStyle);
             return y + 40;
         }
@@ -270,9 +278,10 @@ namespace Projection.Prototype
         {
             GUI.Label(new Rect(x, y, w, 18), "<b>Treasury ledger</b>", _labelStyle);
             y += 20;
-            foreach (var tx in faction.Treasury.Ledger.Reverse().Take(8))
+            var ledger = faction.Treasury.Ledger;
+            for (int i = ledger.Count - 1; i >= 0 && i >= ledger.Count - 8; i--)
             {
-                GUI.Label(new Rect(x, y, w, 16), tx.ToString(), _smallStyle);
+                GUI.Label(new Rect(x, y, w, 16), ledger[i].ToString(), _smallStyle);
                 y += 16;
             }
         }
@@ -286,9 +295,9 @@ namespace Projection.Prototype
             DrawRect(rect, new Color(0.07f, 0.07f, 0.09f));
 
             float y = rect.y + 4;
-            foreach (var line in _log.Skip(Mathf.Max(0, _log.Count - LogLines)))
+            for (int i = Mathf.Max(0, _log.Count - LogLines); i < _log.Count; i++)
             {
-                GUI.Label(new Rect(rect.x + 8, y, rect.width - 16, 17), line, _smallStyle);
+                GUI.Label(new Rect(rect.x + 8, y, rect.width - 16, 17), _log[i], _smallStyle);
                 y += 17;
             }
         }
@@ -311,7 +320,7 @@ namespace Projection.Prototype
         private Color OwnerColor(Faction f)
         {
             if (f == null) return NeutralColor;
-            return f.Archetype == FactionArchetype.Militants ? MilitantColor : ZealotColor;
+            return f.Archetype == FactionType.Militants ? MilitantColor : ZealotColor;
         }
 
         private static string PhaseLabel(TurnPhase phase) =>

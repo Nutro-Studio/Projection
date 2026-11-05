@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Projection.Core.Economy
+namespace Core.Economy
 {
     public readonly struct GoldTransaction
     {

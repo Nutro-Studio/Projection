@@ -1,14 +1,17 @@
-using Projection.Core.Combat;
-using Projection.Core.Economy;
-using Projection.Core.Map;
-using Projection.Core.Turns;
-using Projection.Core.Units;
+using System.Collections.Generic;
+using Core.Combat;
+using Core.Crisis;
+using Core.Economy;
+using Core.Map;
+using Core.Turns;
+using Core.Units;
 
-namespace Projection.Core
+namespace Core
 {
     /// <summary>Wires the systems together and sets up the standard 2-faction start (Militants 8 / Zealots 8 / Neutral 5, 10G each).</summary>
     public class Match
     {
+        public IReadOnlyDictionary<FactionType, IFactionRuleset> Rulesets { get; }
         public GameState State { get; }
         public EconomyService Economy { get; }
         public MovementService Movement { get; }
@@ -17,14 +20,22 @@ namespace Projection.Core
         public Faction Militants { get; }
         public Faction Zealots { get; }
 
-        public Match(ICombatResolver combat = null)
+        public Match(ICombatService combat = null)
         {
-            Militants = new Faction(0, "Militants", FactionArchetype.Militants, EconomyRules.StartingGold);
-            Zealots = new Faction(1, "Zealots", FactionArchetype.Zealots, EconomyRules.StartingGold);
+            Rulesets = new Dictionary<FactionType, IFactionRuleset>
+            {
+                { FactionType.Militants, new MilitantRuleset() },
+                { FactionType.Zealots, new ZealotRuleset() },
+                { FactionType.Guerrillas, new GuerrillaRuleset() },
+                { FactionType.Guilds, new GuildRuleset() }
+            };
+
+            Militants = new Faction(0, "Militants", Rulesets[FactionType.Militants], EconomyRules.StartingGold);
+            Zealots = new Faction(1, "Zealots", Rulesets[FactionType.Zealots], EconomyRules.StartingGold);
 
             State = new GameState(StandardMap.Create(Militants, Zealots), new[] { Militants, Zealots });
             Economy = new EconomyService(State);
-            Movement = new MovementService(State, combat ?? new PlaceholderCombatResolver());
+            Movement = new MovementService(State, combat ?? new RootCombatService(new SystemRandomDiceRoller()));
             Turns = new TurnManager(State, Economy, Movement);
 
             PlaceStartingForces();
