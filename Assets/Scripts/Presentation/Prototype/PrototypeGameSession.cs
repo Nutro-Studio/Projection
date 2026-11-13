@@ -26,6 +26,7 @@ namespace Presentation.Prototype
 
         public event Action StateChanged;
         public event Action<BattleReport> BattleResolved;
+        public event Action<ProvinceState> OnProvinceStateChanged;
 
         public IReadOnlyList<ProvinceState> Provinces => _provinces;
         public PlayerProfile CurrentPlayer => _players[_currentPlayerIndex];
@@ -117,7 +118,7 @@ namespace Presentation.Prototype
             }
 
             units.Add(new CombatUnit(_nextUnitId++, player.Faction, 1, 1));
-            _provinces[provinceId] = province.WithOccupation(province.OwnerId, units);
+            SetProvince(province.WithOccupation(province.OwnerId, units));
             _players[_currentPlayerIndex] = CopyProfile(player, player.Faction, player.Gold - UnitCost,
                 player.VictoryPoints, player.Units);
 
@@ -140,8 +141,8 @@ namespace Presentation.Prototype
 
             if (isFriendly || to.Units.Count == 0)
             {
-                _provinces[fromId] = from.WithOccupation(from.OwnerId, stayers);
-                _provinces[toId] = to.WithOccupation(playerId, Concat(to.Units, movers));
+                SetProvince(from.WithOccupation(from.OwnerId, stayers));
+                SetProvince(to.WithOccupation(playerId, Concat(to.Units, movers)));
                 MarkMoved(movers);
                 StateChanged?.Invoke();
                 return CommandResult.Ok;
@@ -202,14 +203,14 @@ namespace Presentation.Prototype
             bool captured = result.DefenderMustRetreat && result.SurvivingAttackers.Count > 0;
             if (captured)
             {
-                _provinces[from.Id] = from.WithOccupation(from.OwnerId, stayers);
-                _provinces[to.Id] = to.WithOccupation(attackerId, result.SurvivingAttackers);
+                SetProvince(from.WithOccupation(from.OwnerId, stayers));
+                SetProvince(to.WithOccupation(attackerId, result.SurvivingAttackers));
                 RetreatDefenders(to, defenderId, result.SurvivingDefenders);
             }
             else
             {
-                _provinces[from.Id] = from.WithOccupation(from.OwnerId, Concat(stayers, result.SurvivingAttackers));
-                _provinces[to.Id] = to.WithOccupation(defenderId, result.SurvivingDefenders);
+                SetProvince(from.WithOccupation(from.OwnerId, Concat(stayers, result.SurvivingAttackers)));
+                SetProvince(to.WithOccupation(defenderId, result.SurvivingDefenders));
             }
 
             MarkMoved(result.SurvivingAttackers);
@@ -227,7 +228,7 @@ namespace Presentation.Prototype
                 var neighbour = _provinces[lostProvince.Neighbours[i]];
                 if (neighbour.OwnerId == defenderId)
                 {
-                    _provinces[neighbour.Id] = neighbour.WithOccupation(defenderId, Concat(neighbour.Units, survivors));
+                    SetProvince(neighbour.WithOccupation(defenderId, Concat(neighbour.Units, survivors)));
                     return;
                 }
             }
@@ -302,8 +303,14 @@ namespace Presentation.Prototype
                     converted.Add(new CombatUnit(unit.Id, faction, unit.MaxHp, unit.CurrentHp));
                 }
 
-                _provinces[i] = province.WithOccupation(playerId, converted);
+                SetProvince(province.WithOccupation(playerId, converted));
             }
+        }
+
+        private void SetProvince(ProvinceState province)
+        {
+            _provinces[province.Id] = province;
+            OnProvinceStateChanged?.Invoke(province);
         }
 
         private static List<CombatUnit> Concat(IReadOnlyList<CombatUnit> first, IReadOnlyList<CombatUnit> second)
