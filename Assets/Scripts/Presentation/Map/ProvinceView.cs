@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Presentation.Prototype;
 using TMPro;
 using UnityEngine;
@@ -16,6 +15,9 @@ namespace Presentation.Map
         [SerializeField] private string _displayName;
         [SerializeField] private int _startingOwnerId;
         [SerializeField] private int _startingUnits;
+        [SerializeField] private int _startingMissionaries;
+        [SerializeField] private bool _hasStartingChurch;
+        [SerializeField] private int _startingRebellionCellOwnerId = ProvinceSeed.NoRebellionCell;
         [SerializeField] private bool _hasFort;
         [SerializeField] private int[] _neighbours;
         [SerializeField] private SpriteRenderer _outline;
@@ -30,17 +32,16 @@ namespace Presentation.Map
         private bool _isMoveTarget;
 
         public int ProvinceId => _provinceId;
-        public string DisplayName => _displayName;
-        public int StartingOwnerId => _startingOwnerId;
-        public int StartingUnits => _startingUnits;
-        public bool HasFort => _hasFort;
-        public IReadOnlyList<int> Neighbours => _neighbours;
 
         private void Awake()
         {
             _renderer = GetComponent<SpriteRenderer>();
             _baseScale = transform.localScale;
         }
+
+        public ProvinceSeed ToSeed() =>
+            new(_provinceId, _displayName, _hasFort, _neighbours, _startingOwnerId, _startingUnits,
+                _startingMissionaries, _hasStartingChurch, _startingRebellionCellOwnerId);
 
         public void ShowState(ProvinceState province, Color ownerColor, bool hasOwner)
         {

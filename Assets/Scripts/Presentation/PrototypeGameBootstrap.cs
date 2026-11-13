@@ -1,6 +1,4 @@
-using System.Collections.Generic;
 using Core.Combat;
-using Core.Crisis;
 using Presentation.Hud;
 using Presentation.Map;
 using Presentation.Prototype;
@@ -13,9 +11,6 @@ namespace Presentation
     /// </summary>
     public class PrototypeGameBootstrap : MonoBehaviour
     {
-        private const int MilitantsPlayerId = 1;
-        private const int ZealotsPlayerId = 2;
-
         [SerializeField] private CombatCoordinator _coordinator;
         [SerializeField] private HudController _hud;
         [SerializeField] private MapInputController _mapInput;
@@ -27,16 +22,15 @@ namespace Presentation
 
         private void Start()
         {
-            var players = new[]
+            var players = PrototypeSetup.CreatePlayers();
+            var seeds = new ProvinceSeed[_provinceViews.Length];
+            for (int i = 0; i < _provinceViews.Length; i++)
             {
-                new PlayerProfile(MilitantsPlayerId, FactionType.Militants, PrototypeGameSession.StartingGold, 0,
-                    new List<UnitInstance>()),
-                new PlayerProfile(ZealotsPlayerId, FactionType.Zealots, PrototypeGameSession.StartingGold, 0,
-                    new List<UnitInstance>())
-            };
+                seeds[i] = _provinceViews[i].ToSeed();
+            }
 
             var session = new PrototypeGameSession(new CoordinatorGameRules(_coordinator), players,
-                BuildProvinces(players), _crisisEnabled);
+                PrototypeSetup.BuildProvinces(seeds, players), _crisisEnabled);
             var interaction = new HudInteraction(session);
 
             _hud.Initialize(session, interaction, _coordinator);
@@ -47,46 +41,6 @@ namespace Presentation
         private void OnDestroy()
         {
             _mapPresenter?.Dispose();
-        }
-
-        private List<ProvinceState> BuildProvinces(PlayerProfile[] players)
-        {
-            var provinces = new List<ProvinceState>(_provinceViews.Length);
-            int nextUnitId = 0;
-            for (int i = 0; i < _provinceViews.Length; i++)
-            {
-                var view = _provinceViews[i];
-                var faction = FactionOf(players, view.StartingOwnerId);
-                var units = new List<UnitInstance>(view.StartingUnits);
-                for (int u = 0; u < view.StartingUnits; u++)
-                {
-                    units.Add(new UnitInstance(
-                        nextUnitId++,
-                        view.StartingOwnerId,
-                        faction,
-                        UnitType.RegularMilitary,
-                        1,
-                        1));
-                }
-
-                provinces.Add(new ProvinceState(view.ProvinceId, view.DisplayName, view.HasFort, view.Neighbours,
-                    view.StartingOwnerId, units));
-            }
-
-            return provinces;
-        }
-
-        private static FactionType FactionOf(PlayerProfile[] players, int playerId)
-        {
-            for (int i = 0; i < players.Length; i++)
-            {
-                if (players[i].PlayerId == playerId)
-                {
-                    return players[i].Faction;
-                }
-            }
-
-            return FactionType.Guerrillas;
         }
     }
 }
