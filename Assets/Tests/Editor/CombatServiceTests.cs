@@ -128,7 +128,7 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void ResolveBattle_TiesAwardedToDefender_AttackerMustRetreat()
+        public void ResolveBattle_TiesAwardedToDefender_WhenDefendersSurvive()
         {
             var mockDice = new MockDiceRoller
             {
@@ -145,6 +145,28 @@ namespace Tests.Editor
 
             Assert.IsTrue(result.AttackerMustRetreat);
             Assert.IsFalse(result.DefenderMustRetreat);
+        }
+
+        [Test]
+        public void ResolveBattle_WipingOutDefenderGarrison_CapturesProvinceDespiteEqualCasualties()
+        {
+            var mockDice = new MockDiceRoller
+            {
+                AttackerRoll = (2, 1, 3), // Sum = 6 -> capped at 4 hits -> 1 defender killed
+                DefenderRoll = (0, 0, 3)  // Sum = 3 -> capped at 1 hit  -> 1 attacker killed
+            };
+            var combatService = new RootCombatService(mockDice);
+            var attackers = CreateArmy(FactionType.Militants, 4);
+            var defenders = CreateArmy(FactionType.Zealots, 1);
+
+            var context = new CombatContext(attackers, defenders, DefenderHasFort: false,
+                DefenderReceivesFortBonus: false);
+            var result = combatService.ResolveBattle(context);
+
+            Assert.AreEqual(3, result.SurvivingAttackers.Count);
+            Assert.AreEqual(0, result.SurvivingDefenders.Count);
+            Assert.IsFalse(result.AttackerMustRetreat);
+            Assert.IsTrue(result.DefenderMustRetreat);
         }
     }
 }

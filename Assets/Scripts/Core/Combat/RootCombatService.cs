@@ -48,9 +48,12 @@ namespace Core.Combat
                 hasFortArmor: false
             );
 
-            // 5. Casualties & Retreat: higher net losses retreats; defender wins ties
-            bool attackerRetreats = attackerCasualties >= defenderCasualties;
-            bool defenderRetreats = defenderCasualties > attackerCasualties;
+            // 5. Casualties & Retreat:
+            // If all defenders are wiped out and attackers survive, the province falls.
+            // Otherwise, higher net losses retreats and the defender wins ties.
+            bool defenderWipedOut = survivingDefenders.Count == 0 && survivingAttackers.Count > 0;
+            bool defenderRetreats = defenderWipedOut || defenderCasualties > attackerCasualties;
+            bool attackerRetreats = !defenderRetreats;
 
             return new CombatResult(
                 AttackerRawSum: rollSumA,

@@ -304,7 +304,7 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void DemoScenario_BuyMoveRollDamage_TieKeepsOwner_ThenEmptyProvinceIsCaptured()
+        public void DemoScenario_BuyMoveRollDamage_WipingOutGarrisonCapturesProvince()
         {
             var session = CreateSession();
             BattleReport report = null;
@@ -319,15 +319,10 @@ namespace Tests.Editor
             Assert.AreEqual((1, 1, 1), report.Result.DefenderRolls);
             Assert.AreEqual(1, report.DefenderCasualties);
             Assert.AreEqual(1, report.AttackerCasualties);
-            Assert.IsFalse(report.ProvinceCaptured, "Equal casualties go to the defender.");
-            Assert.AreEqual(Defender, session.Provinces[DefenderHome].OwnerId);
-            Assert.AreEqual(1, session.Provinces[AttackerHome].Units.Count);
-
-            session.EndTurn();
-            session.EndTurn();
-            MoveAllMovable(session, AttackerHome, DefenderHome);
-
+            Assert.IsTrue(report.ProvinceCaptured, "All defenders were eliminated while an attacker survived.");
             Assert.AreEqual(Attacker, session.Provinces[DefenderHome].OwnerId);
+            Assert.AreEqual(1, session.Provinces[DefenderHome].Units.Count);
+            Assert.AreEqual(0, session.Provinces[AttackerHome].Units.Count);
         }
 
         [Test]
@@ -685,7 +680,7 @@ namespace Tests.Editor
         [Test]
         public void MoveArmy_DefendingMissionaries_DoNotFightOrRaiseHitCap()
         {
-            var session = CreateSession();
+            var session = CreateSession(middleOwner: Defender);
             BattleReport report = null;
             session.BattleResolved += battle => report = battle;
             session.EndTurn();
@@ -702,8 +697,11 @@ namespace Tests.Editor
             Assert.AreEqual(1, report.DefenderCount);
             Assert.AreEqual(1, report.DefenderCasualties);
             Assert.AreEqual(1, report.AttackerCasualties, "Only the one soldier sets the defender's hit cap.");
+            Assert.IsTrue(report.ProvinceCaptured);
+            Assert.AreEqual(Attacker, session.Provinces[DefenderHome].OwnerId);
             Assert.AreEqual(2, session.Provinces[DefenderHome].Units.Count);
-            Assert.AreEqual(UnitKind.Missionary, session.Provinces[DefenderHome].Units[0].Kind);
+            Assert.AreEqual(2, session.Provinces[NeutralLand].Units.Count);
+            Assert.AreEqual(UnitKind.Missionary, session.Provinces[NeutralLand].Units[0].Kind);
         }
 
         [Test]
