@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using Core.Combat;
-using Core.Crisis;
 
 namespace Core.Crisis
 {
@@ -68,14 +67,14 @@ namespace Core.Crisis
             if (player == null) throw new ArgumentNullException(nameof(player));
 
             int penalizedVp = (int)Math.Floor(player.VictoryPoints * 0.80);
-            var convertedUnits = ConvertUnits(player.Units, FactionType.Guerrillas);
+            var retainedUnits = AssignUnitsToOwner(player.Units, player.PlayerId);
 
             var updatedProfile = player with
             {
                 Faction = FactionType.Guerrillas,
                 Gold = 0,
                 VictoryPoints = Math.Max(0, penalizedVp),
-                Units = convertedUnits
+                Units = retainedUnits
             };
 
             var shiftResult = new CrisisShiftResult(
@@ -105,13 +104,13 @@ namespace Core.Crisis
             }
 
             int boostedVp = (int)Math.Floor(player.VictoryPoints * 1.10);
-            var convertedUnits = ConvertUnits(player.Units, targetLandedFaction);
+            var retainedUnits = AssignUnitsToOwner(player.Units, player.PlayerId);
 
             var updatedProfile = player with
             {
                 Faction = targetLandedFaction,
                 VictoryPoints = boostedVp,
-                Units = convertedUnits
+                Units = retainedUnits
             };
 
             var shiftResult = new CrisisShiftResult(
@@ -142,21 +141,21 @@ namespace Core.Crisis
             }
 
             // Militant shift penalty: lose 50% military units
-            IReadOnlyList<CombatUnit> finalUnits;
+            IReadOnlyList<UnitInstance> finalUnits;
             if (player.Faction == FactionType.Militants)
             {
                 int remainingCount = (int)Math.Ceiling(player.Units.Count * 0.50);
-                var surviving = new List<CombatUnit>(remainingCount);
+                var surviving = new List<UnitInstance>(remainingCount);
                 for (int i = 0; i < remainingCount; i++)
                 {
-                    surviving.Add(player.Units[i] with { Faction = targetFaction });
+                    surviving.Add(player.Units[i] with { OwnerPlayerId = player.PlayerId });
                 }
 
                 finalUnits = surviving;
             }
             else
             {
-                finalUnits = ConvertUnits(player.Units, targetFaction);
+                finalUnits = AssignUnitsToOwner(player.Units, player.PlayerId);
             }
 
             var updatedProfile = player with
@@ -180,12 +179,12 @@ namespace Core.Crisis
             return shiftResult;
         }
 
-        private static List<CombatUnit> ConvertUnits(IReadOnlyList<CombatUnit> units, FactionType newFaction)
+        private static List<UnitInstance> AssignUnitsToOwner(IReadOnlyList<UnitInstance> units, int ownerPlayerId)
         {
-            var list = new List<CombatUnit>(units.Count);
+            var list = new List<UnitInstance>(units.Count);
             for (int i = 0; i < units.Count; i++)
             {
-                list.Add(units[i] with { Faction = newFaction });
+                list.Add(units[i] with { OwnerPlayerId = ownerPlayerId });
             }
 
             return list;

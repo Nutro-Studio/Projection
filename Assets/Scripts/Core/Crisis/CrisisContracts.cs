@@ -9,7 +9,7 @@ namespace Core.Crisis
         FactionType Faction,
         int Gold,
         int VictoryPoints,
-        IReadOnlyList<CombatUnit> Units,
+        IReadOnlyList<UnitInstance> Units,
         int ActionPoints = PlayerProfile.BaseActionPoints
     )
     {

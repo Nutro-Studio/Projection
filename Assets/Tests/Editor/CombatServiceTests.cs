@@ -29,12 +29,12 @@ namespace Tests.Editor
             }
         }
 
-        private static List<CombatUnit> CreateArmy(FactionType faction, int count)
+        private static List<UnitInstance> CreateArmy(int ownerPlayerId, FactionType faction, int count)
         {
-            var list = new List<CombatUnit>(count);
+            var list = new List<UnitInstance>(count);
             for (int i = 0; i < count; i++)
             {
-                list.Add(new CombatUnit(i, faction, 1, 1));
+                list.Add(new UnitInstance(i, ownerPlayerId, faction, UnitType.RegularMilitary, 1, 1));
             }
 
             return list;
@@ -64,11 +64,11 @@ namespace Tests.Editor
             var mockDice = new MockDiceRoller
             {
                 AttackerRoll = (3, 3, 3), // Max Sum = 9
-                DefenderRoll = (0, 0, 0)  // Min Sum = 0
+                DefenderRoll = (0, 0, 0) // Min Sum = 0
             };
             var combatService = new RootCombatService(mockDice);
-            var attackers = CreateArmy(FactionType.Militants, 2);
-            var defenders = CreateArmy(FactionType.Zealots, 10);
+            var attackers = CreateArmy(1, FactionType.Militants, 2);
+            var defenders = CreateArmy(2, FactionType.Zealots, 10);
 
             var context = new CombatContext(attackers, defenders, DefenderHasFort: false,
                 DefenderReceivesFortBonus: false);
@@ -88,11 +88,11 @@ namespace Tests.Editor
             var mockDice = new MockDiceRoller
             {
                 AttackerRoll = (0, 0, 0), // Sum = 0
-                DefenderRoll = (0, 0, 0)  // Sum = 0
+                DefenderRoll = (0, 0, 0) // Sum = 0
             };
             var combatService = new RootCombatService(mockDice);
-            var attackers = CreateArmy(FactionType.Militants, 3);
-            var defenders = CreateArmy(FactionType.Zealots, 3);
+            var attackers = CreateArmy(1, FactionType.Militants, 3);
+            var defenders = CreateArmy(2, FactionType.Zealots, 3);
 
             var context = new CombatContext(attackers, defenders, DefenderHasFort: false,
                 DefenderReceivesFortBonus: false);
@@ -112,11 +112,11 @@ namespace Tests.Editor
             var mockDice = new MockDiceRoller
             {
                 AttackerRoll = (3, 3, 3), // Sum = 9
-                DefenderRoll = (0, 0, 0)  // Sum = 0
+                DefenderRoll = (0, 0, 0) // Sum = 0
             };
             var combatService = new RootCombatService(mockDice);
-            var attackers = CreateArmy(FactionType.Zealots, 1);
-            var defenders = CreateArmy(FactionType.Militants, 1);
+            var attackers = CreateArmy(2, FactionType.Zealots, 1);
+            var defenders = CreateArmy(1, FactionType.Militants, 1);
 
             var context = new CombatContext(attackers, defenders, DefenderHasFort: true,
                 DefenderReceivesFortBonus: true);
@@ -133,11 +133,11 @@ namespace Tests.Editor
             var mockDice = new MockDiceRoller
             {
                 AttackerRoll = (2, 1, 0), // Sum = 3
-                DefenderRoll = (1, 1, 1)  // Sum = 3
+                DefenderRoll = (1, 1, 1) // Sum = 3
             };
             var combatService = new RootCombatService(mockDice);
-            var attackers = CreateArmy(FactionType.Militants, 2);
-            var defenders = CreateArmy(FactionType.Zealots, 2);
+            var attackers = CreateArmy(1, FactionType.Militants, 2);
+            var defenders = CreateArmy(2, FactionType.Zealots, 2);
 
             var context = new CombatContext(attackers, defenders, DefenderHasFort: false,
                 DefenderReceivesFortBonus: false);
@@ -153,11 +153,11 @@ namespace Tests.Editor
             var mockDice = new MockDiceRoller
             {
                 AttackerRoll = (2, 1, 3), // Sum = 6 -> capped at 4 hits -> 1 defender killed
-                DefenderRoll = (0, 0, 3)  // Sum = 3 -> capped at 1 hit  -> 1 attacker killed
+                DefenderRoll = (0, 0, 3) // Sum = 3 -> capped at 1 hit  -> 1 attacker killed
             };
             var combatService = new RootCombatService(mockDice);
-            var attackers = CreateArmy(FactionType.Militants, 4);
-            var defenders = CreateArmy(FactionType.Zealots, 1);
+            var attackers = CreateArmy(1, FactionType.Militants, 4);
+            var defenders = CreateArmy(2, FactionType.Zealots, 1);
 
             var context = new CombatContext(attackers, defenders, DefenderHasFort: false,
                 DefenderReceivesFortBonus: false);

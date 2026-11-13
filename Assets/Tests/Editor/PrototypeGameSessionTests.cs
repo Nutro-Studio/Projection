@@ -54,8 +54,8 @@ namespace Tests.Editor
             }
 
             public CombatResult ResolveSkirmish(
-                IReadOnlyList<CombatUnit> attackers,
-                IReadOnlyList<CombatUnit> defenders,
+                IReadOnlyList<UnitInstance> attackers,
+                IReadOnlyList<UnitInstance> defenders,
                 FactionType defenderFaction,
                 bool hasFortification) =>
                 _combat.ResolveBattle(new CombatContext(attackers, defenders, hasFortification,
@@ -103,23 +103,23 @@ namespace Tests.Editor
             var players = new[]
             {
                 new PlayerProfile(Attacker, attackerFaction, PrototypeGameSession.StartingGold,
-                    attackerVictoryPoints, new List<CombatUnit>()),
+                    attackerVictoryPoints, new List<UnitInstance>()),
                 new PlayerProfile(Defender, defenderFaction, defenderGold, 0,
-                    new List<CombatUnit>())
+                    new List<UnitInstance>())
             };
 
-            var defenders = new List<CombatUnit>(defenderUnits);
+            var defenders = new List<UnitInstance>(defenderUnits);
             for (int i = 0; i < defenderUnits; i++)
             {
-                defenders.Add(new CombatUnit(100 + i, defenderFaction, 1, 1));
+                defenders.Add(new UnitInstance(100 + i, Defender, defenderFaction, UnitType.RegularMilitary, 1, 1));
             }
 
             var provinces = new[]
             {
                 new ProvinceState(AttackerHome, "A", false, new[] { NeutralLand, DefenderHome }, Attacker,
-                    new List<CombatUnit> { new(1, attackerFaction, 1, 1) }),
+                    new List<UnitInstance> { new(1, Attacker, attackerFaction, UnitType.RegularMilitary, 1, 1) }),
                 new ProvinceState(NeutralLand, "N", false, new[] { AttackerHome, DefenderHome },
-                    middleOwner, new List<CombatUnit>()),
+                    middleOwner, new List<UnitInstance>()),
                 new ProvinceState(DefenderHome, "D", defenderFort, new[] { AttackerHome, NeutralLand }, Defender,
                     defenders, defenderChurchOwner, defenderPresence ? new ReligiousPresenceToken(Defender) : null)
             };
@@ -236,6 +236,7 @@ namespace Tests.Editor
             Assert.AreEqual(1, session.Provinces[AttackerHome].Units[0].Id);
             Assert.AreEqual(1, session.Provinces[NeutralLand].Units.Count);
             Assert.AreEqual(boughtUnitId, session.Provinces[NeutralLand].Units[0].Id);
+            Assert.IsTrue(session.Provinces[NeutralLand].Units[0].HasActed);
             Assert.AreEqual(1, session.CountMovableUnits(AttackerHome));
         }
 
@@ -346,7 +347,6 @@ namespace Tests.Editor
                 session.Provinces[AttackerHome].Units[2].Id
             };
             session.MoveArmy(new MoveArmyCommand(AttackerHome, DefenderHome, threeUnits));
-            // Give Attacker 1 more unit or test with 4 units across two turns:
             session.EndTurn();
             session.EndTurn();
             MoveAllMovable(session, AttackerHome, DefenderHome);
@@ -419,7 +419,7 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void EndTurn_WithCrisisEnabled_ConvertsPlayerAndProvinceUnitsToGuerrillas()
+        public void EndTurn_WithCrisisEnabled_ConvertsPlayerToGuerrillasWhilePreservingOriginalFaction()
         {
             var session = CreateSession(crisisEnabled: true, attackerVictoryPoints: 10);
 
@@ -429,7 +429,8 @@ namespace Tests.Editor
             Assert.AreEqual(FactionType.Guerrillas, player.Faction);
             Assert.AreEqual(0, player.Gold);
             Assert.AreEqual(8, player.VictoryPoints);
-            Assert.AreEqual(FactionType.Guerrillas, session.Provinces[AttackerHome].Units[0].Faction);
+            Assert.AreEqual(Attacker, session.Provinces[AttackerHome].Units[0].OwnerPlayerId);
+            Assert.AreEqual(FactionType.Militants, session.Provinces[AttackerHome].Units[0].OriginalFaction);
         }
 
         [Test]
@@ -630,8 +631,22 @@ namespace Tests.Editor
             Assert.AreEqual(CommandResult.Ok, session.BuyMissionary(AttackerHome));
 
             Assert.AreEqual(PrototypeGameSession.StartingGold - 3, session.CurrentPlayer.Gold);
-            Assert.AreEqual(UnitKind.Missionary, session.Provinces[AttackerHome].Units[1].Kind);
+            Assert.AreEqual(UnitType.Missionary, session.Provinces[AttackerHome].Units[1].Type);
+            Assert.AreEqual(FactionType.Zealots, session.Provinces[AttackerHome].Units[1].OriginalFaction);
             Assert.AreEqual(CommandResult.WrongFaction, CreateSession().BuyMissionary(AttackerHome));
+        }
+
+        [Test]
+        public void BuyTrader_CostsThreeGold_AndIsGuildOnly()
+        {
+            var session = CreateSession(attackerFaction: FactionType.Guilds);
+
+            Assert.AreEqual(CommandResult.Ok, session.BuyTrader(AttackerHome));
+
+            Assert.AreEqual(PrototypeGameSession.StartingGold - 3, session.CurrentPlayer.Gold);
+            Assert.AreEqual(UnitType.Trader, session.Provinces[AttackerHome].Units[1].Type);
+            Assert.AreEqual(FactionType.Guilds, session.Provinces[AttackerHome].Units[1].OriginalFaction);
+            Assert.AreEqual(CommandResult.WrongFaction, CreateSession().BuyTrader(AttackerHome));
         }
 
         [Test]
@@ -727,7 +742,7 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void DivineConversion_WonContest_ConvertsUpToTwoUnitsAndExpendsMissionary()
+        public void DivineConversion_WonContest_ConvertsUpToTwoUnitsPreservingOriginFactionAndExpendsMissionary()
         {
             var session = CreateZealotSession(defenderUnits: 3);
             session.BuyMissionary(AttackerHome);
@@ -739,8 +754,10 @@ namespace Tests.Editor
             var home = session.Provinces[AttackerHome].Units;
             Assert.AreEqual(3, home.Count, "Inherited unit plus two converts; the Missionary is spent.");
             Assert.AreEqual(100, home[1].Id);
-            Assert.AreEqual(FactionType.Zealots, home[1].Faction);
-            Assert.AreEqual(UnitKind.Military, home[1].Kind);
+            Assert.AreEqual(Attacker, home[1].OwnerPlayerId);
+            Assert.AreEqual(FactionType.Militants, home[1].OriginalFaction);
+            Assert.AreEqual(UnitType.RegularMilitary, home[1].Type);
+            Assert.IsTrue(home[1].HasActed);
             Assert.AreEqual(1, session.Provinces[DefenderHome].Units.Count);
             Assert.AreEqual(1, session.CountMovableUnits(AttackerHome), "Converts cannot move this turn.");
         }
@@ -889,12 +906,14 @@ namespace Tests.Editor
         {
             var session = CreateSession(defenderUnits: 0, defenderFort: true, defenderChurchOwner: Defender,
                 defenderPresence: true);
+            session.BuyUnit(AttackerHome);
+            session.BuyUnit(AttackerHome);
             MoveAllMovable(session, AttackerHome, DefenderHome);
             session.EndTurn();
             session.EndTurn();
 
-            Assert.AreEqual(PrototypeGameSession.StartingGold + 2 - 1, session.CurrentPlayer.Gold,
-                "Two provinces of revenue, one unit of tithe.");
+            Assert.AreEqual(PrototypeGameSession.StartingGold - 6 + 2 - 3, session.CurrentPlayer.Gold,
+                "6G spent recruiting, two provinces of revenue (+2G), three units of tithe (-3G).");
             Assert.AreEqual(CommandResult.Ok, session.CleanseProvince(DefenderHome));
             Assert.IsTrue(session.Provinces[DefenderHome].HasChurch);
             Assert.IsNull(session.Provinces[DefenderHome].PresenceToken);

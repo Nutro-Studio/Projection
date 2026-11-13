@@ -51,8 +51,8 @@ namespace Core.Combat
         /// Entry point for movement system when armies collide.
         /// </summary>
         public CombatResult ResolveSkirmish(
-            IReadOnlyList<CombatUnit> attackers,
-            IReadOnlyList<CombatUnit> defenders,
+            IReadOnlyList<UnitInstance> attackers,
+            IReadOnlyList<UnitInstance> defenders,
             FactionType defenderFaction,
             bool hasFortification)
         {

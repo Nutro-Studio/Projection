@@ -30,9 +30,9 @@ namespace Presentation
             var players = new[]
             {
                 new PlayerProfile(MilitantsPlayerId, FactionType.Militants, PrototypeGameSession.StartingGold, 0,
-                    new List<CombatUnit>()),
+                    new List<UnitInstance>()),
                 new PlayerProfile(ZealotsPlayerId, FactionType.Zealots, PrototypeGameSession.StartingGold, 0,
-                    new List<CombatUnit>())
+                    new List<UnitInstance>())
             };
 
             var session = new PrototypeGameSession(new CoordinatorGameRules(_coordinator), players,
@@ -57,10 +57,16 @@ namespace Presentation
             {
                 var view = _provinceViews[i];
                 var faction = FactionOf(players, view.StartingOwnerId);
-                var units = new List<CombatUnit>(view.StartingUnits);
+                var units = new List<UnitInstance>(view.StartingUnits);
                 for (int u = 0; u < view.StartingUnits; u++)
                 {
-                    units.Add(new CombatUnit(nextUnitId++, faction, 1, 1));
+                    units.Add(new UnitInstance(
+                        nextUnitId++,
+                        view.StartingOwnerId,
+                        faction,
+                        UnitType.RegularMilitary,
+                        1,
+                        1));
                 }
 
                 provinces.Add(new ProvinceState(view.ProvinceId, view.DisplayName, view.HasFort, view.Neighbours,

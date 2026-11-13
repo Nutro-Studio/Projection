@@ -72,8 +72,8 @@ namespace Presentation.Prototype
     public interface IGameRules
     {
         CombatResult ResolveSkirmish(
-            IReadOnlyList<CombatUnit> attackers,
-            IReadOnlyList<CombatUnit> defenders,
+            IReadOnlyList<UnitInstance> attackers,
+            IReadOnlyList<UnitInstance> defenders,
             FactionType defenderFaction,
             bool hasFortification);
 
@@ -94,7 +94,7 @@ namespace Presentation.Prototype
         public bool HasFort { get; }
         public IReadOnlyList<int> Neighbours { get; }
         public int OwnerId { get; }
-        public IReadOnlyList<CombatUnit> Units { get; }
+        public IReadOnlyList<UnitInstance> Units { get; }
 
         /// <summary>Player who built the Church here, or <see cref="NoChurch"/>.</summary>
         public int ChurchOwnerId { get; }
@@ -110,7 +110,7 @@ namespace Presentation.Prototype
             bool hasFort,
             IReadOnlyList<int> neighbours,
             int ownerId,
-            IReadOnlyList<CombatUnit> units,
+            IReadOnlyList<UnitInstance> units,
             int churchOwnerId = NoChurch,
             ReligiousPresenceToken presenceToken = null,
             RebellionCell rebellionCell = null)
@@ -126,10 +126,10 @@ namespace Presentation.Prototype
             RebellionCell = rebellionCell;
         }
 
-        public ProvinceState WithOccupation(int ownerId, IReadOnlyList<CombatUnit> units) =>
+        public ProvinceState WithOccupation(int ownerId, IReadOnlyList<UnitInstance> units) =>
             new(Id, Name, HasFort, Neighbours, ownerId, units, ChurchOwnerId, PresenceToken, RebellionCell);
 
-        public ProvinceState WithUnits(IReadOnlyList<CombatUnit> units) =>
+        public ProvinceState WithUnits(IReadOnlyList<UnitInstance> units) =>
             new(Id, Name, HasFort, Neighbours, OwnerId, units, ChurchOwnerId, PresenceToken, RebellionCell);
 
         public ProvinceState WithChurch(int churchOwnerId) =>

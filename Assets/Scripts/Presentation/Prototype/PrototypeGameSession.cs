@@ -14,6 +14,7 @@ namespace Presentation.Prototype
         public const int StartingGold = 10;
         public const int UnitCost = 3;
         public const int MissionaryCost = 3;
+        public const int TraderCost = 3;
         public const int ChurchCost = 4;
         public const int ChurchTithe = 1;
         public const int RebellionCellCost = 2;
@@ -24,7 +25,6 @@ namespace Presentation.Prototype
         private readonly bool _crisisEnabled;
         private readonly PlayerProfile[] _players;
         private readonly ProvinceState[] _provinces;
-        private readonly HashSet<int> _movedUnitIds = new();
 
         private int _currentPlayerIndex;
         private int _nextUnitId;
@@ -82,7 +82,7 @@ namespace Presentation.Prototype
 
         /// <summary>
         /// Calculates total Root-style strength points for a player in a province:
-        /// each Military unit = 1, Fort (if owned by player) = 1, Church (if owned by player) = 1.
+        /// each RegularMilitary unit = 1, Fort (if owned by player) = 1, Church (if owned by player) = 1.
         /// </summary>
         public int GetProvinceStrength(int provinceId, int playerId)
         {
@@ -94,7 +94,7 @@ namespace Presentation.Prototype
             for (int i = 0; i < province.Units.Count; i++)
             {
                 var unit = province.Units[i];
-                if (unit.Faction == player.Faction && unit.Kind == UnitKind.Military)
+                if (unit.OwnerPlayerId == playerId && unit.Type == UnitType.RegularMilitary)
                 {
                     strength++;
                 }
@@ -113,18 +113,16 @@ namespace Presentation.Prototype
             return strength;
         }
 
-        public List<CombatUnit> GetUnitsForPlayer(int provinceId, int playerId, UnitKind? kindFilter = null)
+        public List<UnitInstance> GetUnitsForPlayer(int provinceId, int playerId, UnitType? typeFilter = null)
         {
             var province = _provinces[provinceId];
-            var player = GetPlayer(playerId);
-            var result = new List<CombatUnit>();
-            if (player == null) return result;
+            var result = new List<UnitInstance>();
 
             for (int i = 0; i < province.Units.Count; i++)
             {
                 var unit = province.Units[i];
-                if (unit.Faction != player.Faction) continue;
-                if (kindFilter.HasValue && unit.Kind != kindFilter.Value) continue;
+                if (unit.OwnerPlayerId != playerId) continue;
+                if (typeFilter.HasValue && unit.Type != typeFilter.Value) continue;
                 result.Add(unit);
             }
 
@@ -134,11 +132,11 @@ namespace Presentation.Prototype
         public int CountMovableUnits(int provinceId)
         {
             var units = _provinces[provinceId].Units;
-            var currentFaction = CurrentPlayer.Faction;
+            int currentPlayerId = CurrentPlayer.PlayerId;
             int movable = 0;
             for (int i = 0; i < units.Count; i++)
             {
-                if (units[i].Faction == currentFaction && !_movedUnitIds.Contains(units[i].Id))
+                if (units[i].OwnerPlayerId == currentPlayerId && !units[i].HasActed)
                 {
                     movable++;
                 }
@@ -168,7 +166,7 @@ namespace Presentation.Prototype
             if (check != CommandResult.Ok) return check;
             if (CurrentPlayer.Faction == FactionType.Zealots) return CommandResult.WrongFaction;
 
-            return Recruit(provinceId, UnitCost, UnitKind.Military);
+            return Recruit(provinceId, UnitCost, UnitType.RegularMilitary);
         }
 
         public CommandResult BuyMissionary(int provinceId)
@@ -177,7 +175,16 @@ namespace Presentation.Prototype
             if (check != CommandResult.Ok) return check;
             if (CurrentPlayer.Faction != FactionType.Zealots) return CommandResult.WrongFaction;
 
-            return Recruit(provinceId, MissionaryCost, UnitKind.Missionary);
+            return Recruit(provinceId, MissionaryCost, UnitType.Missionary);
+        }
+
+        public CommandResult BuyTrader(int provinceId)
+        {
+            var check = ValidateOwnProvinceAction(provinceId);
+            if (check != CommandResult.Ok) return check;
+            if (CurrentPlayer.Faction != FactionType.Guilds) return CommandResult.WrongFaction;
+
+            return Recruit(provinceId, TraderCost, UnitType.Trader);
         }
 
         public CommandResult BuildChurch(int provinceId)
@@ -208,7 +215,7 @@ namespace Presentation.Prototype
 
             var province = _provinces[provinceId];
             if (CurrentPlayer.Faction != FactionType.Zealots) return CommandResult.WrongFaction;
-            if (IndexOfKind(GetUnitsForPlayer(provinceId, CurrentPlayer.PlayerId), UnitKind.Missionary) < 0)
+            if (IndexOfType(GetUnitsForPlayer(provinceId, CurrentPlayer.PlayerId), UnitType.Missionary) < 0)
             {
                 return CommandResult.NoMissionary;
             }
@@ -223,8 +230,8 @@ namespace Presentation.Prototype
 
         /// <summary>
         /// Expends a Missionary for a contested roll against an adjacent enemy garrison. On a win up to
-        /// <see cref="ConversionLimit"/> enemy units keep their stats, join the Zealots and move to the
-        /// Missionary's province.
+        /// <see cref="ConversionLimit"/> enemy units keep their stats and OriginalFaction, join the Zealots,
+        /// and move to the Missionary's province.
         /// </summary>
         public CommandResult DivineConversion(int missionaryProvinceId, int targetProvinceId)
         {
@@ -236,15 +243,15 @@ namespace Presentation.Prototype
             var player = CurrentPlayer;
             if (player.Faction != FactionType.Zealots) return CommandResult.WrongFaction;
 
-            int missionaryIndex = IndexOfPlayerUnitKind(origin.Units, player.Faction, UnitKind.Missionary);
+            int missionaryIndex = IndexOfPlayerUnitType(origin.Units, player.PlayerId, UnitType.Missionary);
             if (missionaryIndex < 0) return CommandResult.NoMissionary;
             if (!origin.IsAdjacentTo(targetProvinceId)) return CommandResult.NotAdjacent;
 
-            var enemyUnits = new List<CombatUnit>();
-            var nonEnemyUnits = new List<CombatUnit>();
+            var enemyUnits = new List<UnitInstance>();
+            var nonEnemyUnits = new List<UnitInstance>();
             for (int i = 0; i < target.Units.Count; i++)
             {
-                if (target.Units[i].Faction != player.Faction)
+                if (target.Units[i].OwnerPlayerId != player.PlayerId)
                     enemyUnits.Add(target.Units[i]);
                 else
                     nonEnemyUnits.Add(target.Units[i]);
@@ -252,7 +259,7 @@ namespace Presentation.Prototype
 
             if (enemyUnits.Count == 0) return CommandResult.NoTargetUnits;
 
-            var garrison = new List<CombatUnit>(origin.Units);
+            var garrison = new List<UnitInstance>(origin.Units);
             garrison.RemoveAt(missionaryIndex);
 
             int zealotRoll = _rules.RollContest();
@@ -265,9 +272,8 @@ namespace Presentation.Prototype
                     var unit = enemyUnits[i];
                     if (i < converted)
                     {
-                        var convert = unit with { Faction = FactionType.Zealots };
+                        var convert = unit with { OwnerPlayerId = player.PlayerId, HasActed = true };
                         garrison.Add(convert);
-                        _movedUnitIds.Add(convert.Id);
                     }
                     else
                     {
@@ -395,11 +401,11 @@ namespace Presentation.Prototype
         public List<int> GetMovableUnitIds(int provinceId)
         {
             var units = _provinces[provinceId].Units;
-            var currentFaction = CurrentPlayer.Faction;
+            int currentPlayerId = CurrentPlayer.PlayerId;
             var ids = new List<int>(units.Count);
             for (int i = 0; i < units.Count; i++)
             {
-                if (units[i].Faction == currentFaction && !_movedUnitIds.Contains(units[i].Id))
+                if (units[i].OwnerPlayerId == currentPlayerId && !units[i].HasActed)
                 {
                     ids.Add(units[i].Id);
                 }
@@ -429,20 +435,19 @@ namespace Presentation.Prototype
             var to = _provinces[toId];
             if (fromId == toId || !from.IsAdjacentTo(toId)) return CommandResult.NotAdjacent;
 
-            var selection = SplitSelectedUnits(from, CurrentPlayer.Faction, command.SelectedUnitIds, out var movers,
-                out var stayers);
+            int playerId = CurrentPlayer.PlayerId;
+            var selection =
+                SplitSelectedUnits(from, playerId, command.SelectedUnitIds, out var movers, out var stayers);
             if (selection != CommandResult.Ok) return selection;
 
-            int playerId = CurrentPlayer.PlayerId;
-            bool hasHostilePresence = HasEnemyMilitary(to.Units, CurrentPlayer.Faction);
-            if (to.OwnerId != playerId && hasHostilePresence && IndexOfKind(movers, UnitKind.Missionary) >= 0)
+            bool hasHostilePresence = HasEnemyMilitary(to.Units, playerId);
+            if (to.OwnerId != playerId && hasHostilePresence && IndexOfType(movers, UnitType.Missionary) >= 0)
             {
                 return CommandResult.MissionariesCannotConquer;
             }
 
             SetProvince(from.WithUnits(stayers));
             SetProvince(to.WithUnits(Concat(to.Units, movers)));
-            MarkMoved(movers);
             SpendActionPoint();
             StateChanged?.Invoke();
             return CommandResult.Ok;
@@ -463,22 +468,24 @@ namespace Presentation.Prototype
             if (defender == null) return CommandResult.InvalidBattleTarget;
 
             var province = _provinces[provinceId];
-            var attackers = GetUnitsForPlayer(provinceId, attacker.PlayerId, UnitKind.Military);
+            var attackers = GetUnitsForPlayer(provinceId, attacker.PlayerId, UnitType.RegularMilitary);
             if (attackers.Count == 0) return CommandResult.NoMilitaryUnits;
 
-            var defenders = GetUnitsForPlayer(provinceId, defenderPlayerId, UnitKind.Military);
+            var defenders = GetUnitsForPlayer(provinceId, defenderPlayerId, UnitType.RegularMilitary);
             if (defenders.Count == 0) return CommandResult.NoTargetUnits;
 
             bool defenderHasFort = province.HasFort && province.OwnerId == defenderPlayerId;
             var result = _rules.ResolveSkirmish(attackers, defenders, defender.Faction, defenderHasFort);
 
-            // Preserve all unaffected units (bystanders, non-combatant missionaries) in the province.
-            var bystanders = new List<CombatUnit>(province.Units.Count);
+            // Preserve all unaffected units (bystanders, non-combatant missionaries, traders) in the province.
+            var bystanders = new List<UnitInstance>(province.Units.Count);
             for (int i = 0; i < province.Units.Count; i++)
             {
                 var unit = province.Units[i];
-                bool isCombatantAttacker = unit.Faction == attacker.Faction && unit.Kind == UnitKind.Military;
-                bool isCombatantDefender = unit.Faction == defender.Faction && unit.Kind == UnitKind.Military;
+                bool isCombatantAttacker =
+                    unit.OwnerPlayerId == attacker.PlayerId && unit.Type == UnitType.RegularMilitary;
+                bool isCombatantDefender =
+                    unit.OwnerPlayerId == defenderPlayerId && unit.Type == UnitType.RegularMilitary;
                 if (!isCombatantAttacker && !isCombatantDefender)
                 {
                     bystanders.Add(unit);
@@ -531,15 +538,10 @@ namespace Presentation.Prototype
             var updated = _rules.EvaluatePlayerTurnState(beforeRules, provincesForRules);
             _players[_currentPlayerIndex] = updated;
 
-            if (updated.Faction != player.Faction)
-            {
-                ConvertPlayerUnits(player.Faction, updated.Faction);
-            }
-
             IsGameOver = updated.VictoryPoints >= CrisisDirector.VictoryPointsThreshold;
             if (!IsGameOver)
             {
-                _movedUnitIds.Clear();
+                ResetUnitActionFlags();
                 _currentPlayerIndex = (_currentPlayerIndex + 1) % _players.Length;
                 if (_currentPlayerIndex == 0)
                 {
@@ -557,7 +559,7 @@ namespace Presentation.Prototype
 
         /// <summary>
         /// Dynamically evaluates Province Hegemony via strict majority of total strength points:
-        /// each Military unit = 1, Fort (owned by current controller) = 1, Church (owned by builder) = 1.
+        /// each RegularMilitary unit = 1, Fort (owned by current controller) = 1, Church (owned by builder) = 1.
         /// </summary>
         private ProvinceState EvaluateHegemony(ProvinceState province)
         {
@@ -568,13 +570,12 @@ namespace Presentation.Prototype
             for (int p = 0; p < _players.Length; p++)
             {
                 int playerId = _players[p].PlayerId;
-                var faction = _players[p].Faction;
 
                 int strength = 0;
                 for (int u = 0; u < province.Units.Count; u++)
                 {
                     var unit = province.Units[u];
-                    if (unit.Faction == faction && unit.Kind == UnitKind.Military)
+                    if (unit.OwnerPlayerId == playerId && unit.Type == UnitType.RegularMilitary)
                     {
                         strength++;
                     }
@@ -602,17 +603,22 @@ namespace Presentation.Prototype
                 }
             }
 
-            int newOwnerId = (bestStrength == 0 || isTie) ? ProvinceState.NeutralOwner : bestPlayerId;
+            if (bestStrength == 0)
+            {
+                return province;
+            }
+
+            int newOwnerId = isTie ? ProvinceState.NeutralOwner : bestPlayerId;
             return newOwnerId == province.OwnerId
                 ? province
                 : province.WithOccupation(newOwnerId, province.Units);
         }
 
         /// <summary>
-        /// Retreating units fall back to the first adjacent province held by that player (or without hostile military).
+        /// Retreating units fall back to the first adjacent province held by that player.
         /// With nowhere to go they are lost.
         /// </summary>
-        private void RetreatUnits(ProvinceState originProvince, int playerId, IReadOnlyList<CombatUnit> survivors)
+        private void RetreatUnits(ProvinceState originProvince, int playerId, IReadOnlyList<UnitInstance> survivors)
         {
             if (survivors.Count == 0) return;
 
@@ -628,32 +634,32 @@ namespace Presentation.Prototype
         }
 
         /// <summary>
-        /// Selected units belonging to <paramref name="movingFaction"/> move; every other unit stays in the origin.
-        /// Fails without side effects when a selected unit has already moved, is not in the province, belongs to
-        /// another player, or is listed twice.
+        /// Selected units belonging to <paramref name="movingPlayerId"/> move and have HasActed set to true;
+        /// every other unit stays in the origin. Fails without side effects when a selected unit has already acted,
+        /// is not in the province, belongs to another player, or is listed twice.
         /// </summary>
-        private CommandResult SplitSelectedUnits(
+        private static CommandResult SplitSelectedUnits(
             ProvinceState province,
-            FactionType movingFaction,
+            int movingPlayerId,
             IReadOnlyList<int> selectedUnitIds,
-            out List<CombatUnit> movers,
-            out List<CombatUnit> stayers)
+            out List<UnitInstance> movers,
+            out List<UnitInstance> stayers)
         {
             int count = province.Units.Count;
-            movers = new List<CombatUnit>(selectedUnitIds.Count);
-            stayers = new List<CombatUnit>(count);
+            movers = new List<UnitInstance>(selectedUnitIds.Count);
+            stayers = new List<UnitInstance>(count);
             for (int i = 0; i < count; i++)
             {
                 var unit = province.Units[i];
-                if (unit.Faction != movingFaction || !Contains(selectedUnitIds, unit.Id))
+                if (unit.OwnerPlayerId != movingPlayerId || !Contains(selectedUnitIds, unit.Id))
                 {
                     stayers.Add(unit);
                     continue;
                 }
 
-                if (_movedUnitIds.Contains(unit.Id)) return CommandResult.UnitsAlreadyMoved;
+                if (unit.HasActed) return CommandResult.UnitsAlreadyMoved;
 
-                movers.Add(unit);
+                movers.Add(unit with { HasActed = true });
             }
 
             return movers.Count == selectedUnitIds.Count ? CommandResult.Ok : CommandResult.InvalidUnitSelection;
@@ -672,11 +678,11 @@ namespace Presentation.Prototype
             return false;
         }
 
-        private static bool HasEnemyMilitary(IReadOnlyList<CombatUnit> units, FactionType friendlyFaction)
+        private static bool HasEnemyMilitary(IReadOnlyList<UnitInstance> units, int friendlyPlayerId)
         {
             for (int i = 0; i < units.Count; i++)
             {
-                if (units[i].Faction != friendlyFaction && units[i].Kind == UnitKind.Military)
+                if (units[i].OwnerPlayerId != friendlyPlayerId && units[i].Type == UnitType.RegularMilitary)
                 {
                     return true;
                 }
@@ -711,7 +717,7 @@ namespace Presentation.Prototype
             if (IsGameOver) return CommandResult.GameOver;
             if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
             if (!factionAllowed) return CommandResult.WrongFaction;
-            if (GetUnitsForPlayer(provinceId, CurrentPlayer.PlayerId, UnitKind.Military).Count == 0)
+            if (GetUnitsForPlayer(provinceId, CurrentPlayer.PlayerId, UnitType.RegularMilitary).Count == 0)
             {
                 return CommandResult.NoMilitaryUnits;
             }
@@ -719,15 +725,15 @@ namespace Presentation.Prototype
             return CommandResult.Ok;
         }
 
-        private CommandResult Recruit(int provinceId, int cost, UnitKind kind)
+        private CommandResult Recruit(int provinceId, int cost, UnitType type)
         {
             var province = _provinces[provinceId];
             var player = CurrentPlayer;
             if (player.Gold < cost) return CommandResult.NotEnoughGold;
 
-            var units = new List<CombatUnit>(province.Units)
+            var units = new List<UnitInstance>(province.Units)
             {
-                new(_nextUnitId++, player.Faction, 1, 1, kind)
+                new(_nextUnitId++, player.PlayerId, player.Faction, type, 1, 1)
             };
 
             SetProvince(province.WithUnits(units));
@@ -754,11 +760,11 @@ namespace Presentation.Prototype
                 int churchOwnerIndex = IndexOfPlayer(province.ChurchOwnerId);
                 if (churchOwnerIndex < 0 || _players[churchOwnerIndex].Faction != FactionType.Zealots) continue;
 
-                var kept = new List<CombatUnit>(province.Units.Count);
+                var kept = new List<UnitInstance>(province.Units.Count);
                 for (int u = 0; u < province.Units.Count; u++)
                 {
                     var unit = province.Units[u];
-                    if (unit.Faction != payer.Faction)
+                    if (unit.OwnerPlayerId != payer.PlayerId)
                     {
                         kept.Add(unit);
                         continue;
@@ -778,6 +784,34 @@ namespace Presentation.Prototype
             }
         }
 
+        private void ResetUnitActionFlags()
+        {
+            for (int i = 0; i < _provinces.Length; i++)
+            {
+                var province = _provinces[i];
+                bool changed = false;
+                var resetUnits = new List<UnitInstance>(province.Units.Count);
+                for (int u = 0; u < province.Units.Count; u++)
+                {
+                    var unit = province.Units[u];
+                    if (unit.HasActed)
+                    {
+                        resetUnits.Add(unit with { HasActed = false });
+                        changed = true;
+                    }
+                    else
+                    {
+                        resetUnits.Add(unit);
+                    }
+                }
+
+                if (changed)
+                {
+                    _provinces[i] = province.WithUnits(resetUnits);
+                }
+            }
+        }
+
         private int IndexOfPlayer(int playerId)
         {
             for (int i = 0; i < _players.Length; i++)
@@ -791,11 +825,11 @@ namespace Presentation.Prototype
             return -1;
         }
 
-        private static int IndexOfKind(IReadOnlyList<CombatUnit> units, UnitKind kind)
+        private static int IndexOfType(IReadOnlyList<UnitInstance> units, UnitType type)
         {
             for (int i = 0; i < units.Count; i++)
             {
-                if (units[i].Kind == kind)
+                if (units[i].Type == type)
                 {
                     return i;
                 }
@@ -804,11 +838,11 @@ namespace Presentation.Prototype
             return -1;
         }
 
-        private static int IndexOfPlayerUnitKind(IReadOnlyList<CombatUnit> units, FactionType faction, UnitKind kind)
+        private static int IndexOfPlayerUnitType(IReadOnlyList<UnitInstance> units, int playerId, UnitType type)
         {
             for (int i = 0; i < units.Count; i++)
             {
-                if (units[i].Faction == faction && units[i].Kind == kind)
+                if (units[i].OwnerPlayerId == playerId && units[i].Type == type)
                 {
                     return i;
                 }
@@ -829,14 +863,6 @@ namespace Presentation.Prototype
             _players[_currentPlayerIndex] = player with { ActionPoints = player.ActionPoints - 1 };
         }
 
-        private void MarkMoved(IReadOnlyList<CombatUnit> units)
-        {
-            for (int i = 0; i < units.Count; i++)
-            {
-                _movedUnitIds.Add(units[i].Id);
-            }
-        }
-
         private int CountProvinces(int playerId)
         {
             int count = 0;
@@ -851,18 +877,16 @@ namespace Presentation.Prototype
             return count;
         }
 
-        private List<CombatUnit> CollectUnits(int playerId)
+        private List<UnitInstance> CollectUnits(int playerId)
         {
-            var player = GetPlayer(playerId);
-            var units = new List<CombatUnit>();
-            if (player == null) return units;
+            var units = new List<UnitInstance>();
 
             for (int i = 0; i < _provinces.Length; i++)
             {
                 var provinceUnits = _provinces[i].Units;
                 for (int u = 0; u < provinceUnits.Count; u++)
                 {
-                    if (provinceUnits[u].Faction == player.Faction)
+                    if (provinceUnits[u].OwnerPlayerId == playerId)
                     {
                         units.Add(provinceUnits[u]);
                     }
@@ -872,34 +896,6 @@ namespace Presentation.Prototype
             return units;
         }
 
-        private void ConvertPlayerUnits(FactionType oldFaction, FactionType newFaction)
-        {
-            for (int i = 0; i < _provinces.Length; i++)
-            {
-                var province = _provinces[i];
-                bool changed = false;
-                var converted = new List<CombatUnit>(province.Units.Count);
-                for (int u = 0; u < province.Units.Count; u++)
-                {
-                    var unit = province.Units[u];
-                    if (unit.Faction == oldFaction)
-                    {
-                        converted.Add(unit with { Faction = newFaction });
-                        changed = true;
-                    }
-                    else
-                    {
-                        converted.Add(unit);
-                    }
-                }
-
-                if (changed)
-                {
-                    SetProvince(province.WithUnits(converted));
-                }
-            }
-        }
-
         private void SetProvince(ProvinceState province)
         {
             var evaluated = EvaluateHegemony(province);
@@ -907,9 +903,9 @@ namespace Presentation.Prototype
             OnProvinceStateChanged?.Invoke(evaluated);
         }
 
-        private static List<CombatUnit> Concat(IReadOnlyList<CombatUnit> first, IReadOnlyList<CombatUnit> second)
+        private static List<UnitInstance> Concat(IReadOnlyList<UnitInstance> first, IReadOnlyList<UnitInstance> second)
         {
-            var units = new List<CombatUnit>(first.Count + second.Count);
+            var units = new List<UnitInstance>(first.Count + second.Count);
             for (int i = 0; i < first.Count; i++)
             {
                 units.Add(first[i]);
@@ -928,7 +924,7 @@ namespace Presentation.Prototype
             FactionType faction,
             int gold,
             int victoryPoints,
-            IReadOnlyList<CombatUnit> units) =>
+            IReadOnlyList<UnitInstance> units) =>
             new(profile.PlayerId, faction, gold, victoryPoints, units, profile.ActionPoints);
     }
 }

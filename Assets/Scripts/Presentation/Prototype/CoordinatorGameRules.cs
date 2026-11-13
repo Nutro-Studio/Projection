@@ -12,8 +12,8 @@ namespace Presentation.Prototype
         public CoordinatorGameRules(CombatCoordinator coordinator) => _coordinator = coordinator;
 
         public CombatResult ResolveSkirmish(
-            IReadOnlyList<CombatUnit> attackers,
-            IReadOnlyList<CombatUnit> defenders,
+            IReadOnlyList<UnitInstance> attackers,
+            IReadOnlyList<UnitInstance> defenders,
             FactionType defenderFaction,
             bool hasFortification) =>
             _coordinator.ResolveSkirmish(attackers, defenders, defenderFaction, hasFortification);

@@ -71,8 +71,8 @@ namespace Core.Combat
             );
         }
 
-        private static (List<CombatUnit> SurvivingUnits, int Casualties) ApplyHitsToArmy(
-            IReadOnlyList<CombatUnit> units,
+        private static (List<UnitInstance> SurvivingUnits, int Casualties) ApplyHitsToArmy(
+            IReadOnlyList<UnitInstance> units,
             int incomingHits,
             bool hasFortArmor)
         {
@@ -80,7 +80,7 @@ namespace Core.Combat
             int hitsLeft = incomingHits;
             int casualties = 0;
 
-            var surviving = new List<CombatUnit>(count);
+            var surviving = new List<UnitInstance>(count);
 
             for (int i = 0; i < count; i++)
             {
