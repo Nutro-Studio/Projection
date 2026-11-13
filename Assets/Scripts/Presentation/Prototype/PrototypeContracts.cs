@@ -14,7 +14,8 @@ namespace Presentation.Prototype
         NotAdjacent,
         UnitsAlreadyMoved,
         NoUnitsSelected,
-        InvalidUnitSelection
+        InvalidUnitSelection,
+        NoActionPoints
     }
 
     public sealed class MoveArmyCommand

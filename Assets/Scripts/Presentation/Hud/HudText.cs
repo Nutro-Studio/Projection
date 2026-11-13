@@ -43,6 +43,7 @@ namespace Presentation.Hud
             CommandResult.UnitsAlreadyMoved => "These units have already moved this turn.",
             CommandResult.NoUnitsSelected => "Select at least one unit to move.",
             CommandResult.InvalidUnitSelection => "The selected units are not all in this province.",
+            CommandResult.NoActionPoints => "No action points left. End the turn.",
             _ => result.ToString()
         };
 

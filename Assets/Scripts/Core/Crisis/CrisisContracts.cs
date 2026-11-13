@@ -9,8 +9,13 @@ namespace Core.Crisis
         FactionType Faction,
         int Gold,
         int VictoryPoints,
-        IReadOnlyList<CombatUnit> Units
-    );
+        IReadOnlyList<CombatUnit> Units,
+        int ActionPoints = PlayerProfile.BaseActionPoints
+    )
+    {
+        /// <summary>Every major board interaction costs one AP; the pool refills at the start of the turn.</summary>
+        public const int BaseActionPoints = 4;
+    }
 
     public record CrisisShiftResult(
         PlayerProfile UpdatedProfile,
