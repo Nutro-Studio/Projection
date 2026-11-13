@@ -97,7 +97,8 @@ namespace Tests.Editor
             int middleOwner = ProvinceState.NeutralOwner,
             FactionType attackerFaction = FactionType.Militants,
             int defenderGold = PrototypeGameSession.StartingGold,
-            int defenderChurchOwner = ProvinceState.NoChurch)
+            int defenderChurchOwner = ProvinceState.NoChurch,
+            bool defenderPresence = false)
         {
             var players = new[]
             {
@@ -120,7 +121,7 @@ namespace Tests.Editor
                 new ProvinceState(NeutralLand, "N", false, new[] { AttackerHome, DefenderHome },
                     middleOwner, new List<CombatUnit>()),
                 new ProvinceState(DefenderHome, "D", defenderFort, new[] { AttackerHome, NeutralLand }, Defender,
-                    defenders, defenderChurchOwner)
+                    defenders, defenderChurchOwner, defenderPresence ? new ReligiousPresenceToken(Defender) : null)
             };
 
             return new PrototypeGameSession(new CoreRules(_dice), players, provinces, crisisEnabled);
@@ -770,6 +771,138 @@ namespace Tests.Editor
 
             Assert.AreEqual(4, session.GetRebellionCellCost(DefenderHome));
             Assert.AreEqual(2, session.GetRebellionCellCost(NeutralLand));
+        }
+
+        [Test]
+        public void PlaceRebellionCell_CostsTwoGold_OrFourInChurchProvince()
+        {
+            var session = CreateSession(attackerFaction: FactionType.Guerrillas, defenderChurchOwner: Defender);
+
+            Assert.AreEqual(CommandResult.Ok, session.PlaceRebellionCell(NeutralLand));
+            Assert.AreEqual(CommandResult.Ok, session.PlaceRebellionCell(DefenderHome));
+            Assert.AreEqual(CommandResult.AlreadyBuilt, session.PlaceRebellionCell(DefenderHome));
+
+            Assert.AreEqual(PrototypeGameSession.StartingGold - 2 - 4, session.CurrentPlayer.Gold);
+            Assert.AreEqual(Attacker, session.Provinces[DefenderHome].RebellionCell.OwnerId);
+            Assert.IsFalse(session.Provinces[DefenderHome].RebellionCell.IsOpenRebellion);
+            Assert.AreEqual(CommandResult.WrongFaction, CreateSession().PlaceRebellionCell(NeutralLand));
+        }
+
+        [Test]
+        public void InciteRebellion_OpensOwnUndercoverCell()
+        {
+            var session = CreateSession(attackerFaction: FactionType.Guerrillas);
+            Assert.AreEqual(CommandResult.NoRebellionCell, session.InciteRebellion(DefenderHome));
+            session.PlaceRebellionCell(DefenderHome);
+
+            Assert.AreEqual(CommandResult.Ok, session.InciteRebellion(DefenderHome));
+            Assert.AreEqual(CommandResult.AlreadyBuilt, session.InciteRebellion(DefenderHome));
+
+            Assert.IsTrue(session.Provinces[DefenderHome].RebellionCell.IsOpenRebellion);
+        }
+
+        [Test]
+        public void MartialLaw_PurgesOpenRebellionInOccupiedProvince()
+        {
+            var session = CreateSession(defenderFaction: FactionType.Guerrillas);
+            Assert.AreEqual(CommandResult.NothingToPurge, session.MartialLaw(AttackerHome));
+            session.EndTurn();
+            session.PlaceRebellionCell(AttackerHome);
+            session.InciteRebellion(AttackerHome);
+            session.EndTurn();
+
+            Assert.AreEqual(CommandResult.Ok, session.MartialLaw(AttackerHome));
+
+            Assert.IsNull(session.Provinces[AttackerHome].RebellionCell);
+            Assert.AreEqual(PlayerProfile.BaseActionPoints - 1, session.CurrentPlayer.ActionPoints);
+        }
+
+        [Test]
+        public void MartialLaw_IsRejected_WithoutOccupyingMilitaryOrForOtherFactions()
+        {
+            var session = CreateSession();
+            MoveAllMovable(session, AttackerHome, NeutralLand);
+
+            Assert.AreEqual(CommandResult.NoMilitaryUnits, session.MartialLaw(AttackerHome));
+            Assert.AreEqual(CommandResult.WrongFaction,
+                CreateSession(attackerFaction: FactionType.Zealots).MartialLaw(AttackerHome));
+        }
+
+        [Test]
+        public void Inquisition_PurgesReligiousPresenceToken()
+        {
+            var session = CreateSession(defenderUnits: 0, defenderPresence: true);
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+
+            Assert.AreEqual(CommandResult.Ok, session.Inquisition(DefenderHome));
+
+            Assert.IsNull(session.Provinces[DefenderHome].PresenceToken);
+        }
+
+        [Test]
+        public void CleanseProvince_OccupyingLandedArmy_DismantlesChurchAndToken()
+        {
+            var session = CreateSession(defenderUnits: 0, defenderChurchOwner: Defender, defenderPresence: true);
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+
+            Assert.AreEqual(CommandResult.Ok, session.CleanseProvince(DefenderHome));
+            Assert.AreEqual(CommandResult.NothingToPurge, session.CleanseProvince(DefenderHome));
+
+            Assert.IsFalse(session.Provinces[DefenderHome].HasChurch);
+            Assert.IsNull(session.Provinces[DefenderHome].PresenceToken);
+        }
+
+        [Test]
+        public void MartialLaw_CannotTargetUndercoverCell()
+        {
+            var session = CreateSession(defenderFaction: FactionType.Guerrillas);
+            session.EndTurn();
+            session.PlaceRebellionCell(AttackerHome);
+            session.EndTurn();
+
+            Assert.AreEqual(CommandResult.NothingToPurge, session.MartialLaw(AttackerHome));
+            Assert.IsNotNull(session.Provinces[AttackerHome].RebellionCell);
+        }
+
+        [Test]
+        public void CapturedChurch_TaxesOccupier_AndFortifiedChurchCannotBeDismantled()
+        {
+            var session = CreateSession(defenderUnits: 0, defenderFort: true, defenderChurchOwner: Defender,
+                defenderPresence: true);
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+            session.EndTurn();
+            session.EndTurn();
+
+            Assert.AreEqual(PrototypeGameSession.StartingGold + 2 - 1, session.CurrentPlayer.Gold,
+                "Two provinces of revenue, one unit of tithe.");
+            Assert.AreEqual(CommandResult.Ok, session.CleanseProvince(DefenderHome));
+            Assert.IsTrue(session.Provinces[DefenderHome].HasChurch);
+            Assert.IsNull(session.Provinces[DefenderHome].PresenceToken);
+        }
+
+        [Test]
+        public void GuerrillaActions_AreRejected_WhenActionPointsAreDepleted()
+        {
+            var session = CreateSession(attackerFaction: FactionType.Guerrillas);
+            session.PlaceRebellionCell(NeutralLand);
+            session.InciteRebellion(NeutralLand);
+            session.PlaceRebellionCell(DefenderHome);
+            session.InciteRebellion(DefenderHome);
+
+            Assert.AreEqual(CommandResult.NoActionPoints, session.PlaceRebellionCell(AttackerHome));
+            Assert.IsNull(session.Provinces[AttackerHome].RebellionCell);
+        }
+
+        [Test]
+        public void ChurchTithe_GuerrillasAreExempt()
+        {
+            var session = CreateSession(defenderUnits: 2, defenderFaction: FactionType.Guerrillas,
+                attackerFaction: FactionType.Zealots, defenderChurchOwner: Attacker);
+
+            session.EndTurn();
+
+            Assert.AreEqual(PrototypeGameSession.StartingGold, session.CurrentPlayer.Gold);
+            Assert.AreEqual(2, session.Provinces[DefenderHome].Units.Count);
         }
     }
 }

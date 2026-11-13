@@ -21,7 +21,24 @@ namespace Presentation.Prototype
         AlreadyBuilt,
         NoMilitaryUnits,
         MissionariesCannotConquer,
-        NoTargetUnits
+        NoTargetUnits,
+        NoRebellionCell,
+        NothingToPurge
+    }
+
+    /// <summary>
+    /// Guerrilla cell. It stays undercover until the owner incites an open rebellion. A province holds at most one.
+    /// </summary>
+    public sealed class RebellionCell
+    {
+        public int OwnerId { get; }
+        public bool IsOpenRebellion { get; }
+
+        public RebellionCell(int ownerId, bool isOpenRebellion)
+        {
+            OwnerId = ownerId;
+            IsOpenRebellion = isOpenRebellion;
+        }
     }
 
     /// <summary>
@@ -81,6 +98,7 @@ namespace Presentation.Prototype
         /// <summary>Player who built the Church here, or <see cref="NoChurch"/>.</summary>
         public int ChurchOwnerId { get; }
         public ReligiousPresenceToken PresenceToken { get; }
+        public RebellionCell RebellionCell { get; }
 
         public bool HasChurch => ChurchOwnerId != NoChurch;
 
@@ -92,7 +110,8 @@ namespace Presentation.Prototype
             int ownerId,
             IReadOnlyList<CombatUnit> units,
             int churchOwnerId = NoChurch,
-            ReligiousPresenceToken presenceToken = null)
+            ReligiousPresenceToken presenceToken = null,
+            RebellionCell rebellionCell = null)
         {
             Id = id;
             Name = name;
@@ -102,16 +121,20 @@ namespace Presentation.Prototype
             Units = units;
             ChurchOwnerId = churchOwnerId;
             PresenceToken = presenceToken;
+            RebellionCell = rebellionCell;
         }
 
         public ProvinceState WithOccupation(int ownerId, IReadOnlyList<CombatUnit> units) =>
-            new(Id, Name, HasFort, Neighbours, ownerId, units, ChurchOwnerId, PresenceToken);
+            new(Id, Name, HasFort, Neighbours, ownerId, units, ChurchOwnerId, PresenceToken, RebellionCell);
 
         public ProvinceState WithChurch(int churchOwnerId) =>
-            new(Id, Name, HasFort, Neighbours, OwnerId, Units, churchOwnerId, PresenceToken);
+            new(Id, Name, HasFort, Neighbours, OwnerId, Units, churchOwnerId, PresenceToken, RebellionCell);
 
         public ProvinceState WithPresence(ReligiousPresenceToken presenceToken) =>
-            new(Id, Name, HasFort, Neighbours, OwnerId, Units, ChurchOwnerId, presenceToken);
+            new(Id, Name, HasFort, Neighbours, OwnerId, Units, ChurchOwnerId, presenceToken, RebellionCell);
+
+        public ProvinceState WithRebellionCell(RebellionCell rebellionCell) =>
+            new(Id, Name, HasFort, Neighbours, OwnerId, Units, ChurchOwnerId, PresenceToken, rebellionCell);
 
         public bool IsAdjacentTo(int provinceId)
         {
