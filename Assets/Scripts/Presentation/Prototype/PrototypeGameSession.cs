@@ -93,6 +93,7 @@ namespace Presentation.Prototype
         public CommandResult ValidateMoveOrigin(int provinceId)
         {
             if (IsGameOver) return CommandResult.GameOver;
+            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
 
             var province = _provinces[provinceId];
             if (province.OwnerId != CurrentPlayer.PlayerId) return CommandResult.NotYourProvince;
@@ -108,6 +109,7 @@ namespace Presentation.Prototype
 
             var province = _provinces[provinceId];
             var player = CurrentPlayer;
+            if (player.ActionPoints <= 0) return CommandResult.NoActionPoints;
             if (province.OwnerId != player.PlayerId) return CommandResult.NotYourProvince;
             if (player.Gold < UnitCost) return CommandResult.NotEnoughGold;
 
@@ -121,6 +123,7 @@ namespace Presentation.Prototype
             SetProvince(province.WithOccupation(province.OwnerId, units));
             _players[_currentPlayerIndex] = CopyProfile(player, player.Faction, player.Gold - UnitCost,
                 player.VictoryPoints, player.Units);
+            SpendActionPoint();
 
             StateChanged?.Invoke();
             return CommandResult.Ok;
@@ -169,11 +172,13 @@ namespace Presentation.Prototype
                 SetProvince(from.WithOccupation(from.OwnerId, stayers));
                 SetProvince(to.WithOccupation(playerId, Concat(to.Units, movers)));
                 MarkMoved(movers);
+                SpendActionPoint();
                 StateChanged?.Invoke();
                 return CommandResult.Ok;
             }
 
             ResolveBattle(from, to, movers, stayers);
+            SpendActionPoint();
             StateChanged?.Invoke();
             return CommandResult.Ok;
         }
@@ -209,6 +214,9 @@ namespace Presentation.Prototype
                 {
                     TurnNumber++;
                 }
+
+                _players[_currentPlayerIndex] =
+                    CurrentPlayer with { ActionPoints = PlayerProfile.BaseActionPoints };
             }
 
             StateChanged?.Invoke();
@@ -302,6 +310,12 @@ namespace Presentation.Prototype
             return false;
         }
 
+        private void SpendActionPoint()
+        {
+            var player = CurrentPlayer;
+            _players[_currentPlayerIndex] = player with { ActionPoints = player.ActionPoints - 1 };
+        }
+
         private void MarkMoved(IReadOnlyList<CombatUnit> units)
         {
             for (int i = 0; i < units.Count; i++)
@@ -384,6 +398,6 @@ namespace Presentation.Prototype
             int gold,
             int victoryPoints,
             IReadOnlyList<CombatUnit> units) =>
-            new(profile.PlayerId, faction, gold, victoryPoints, units);
+            new(profile.PlayerId, faction, gold, victoryPoints, units, profile.ActionPoints);
     }
 }

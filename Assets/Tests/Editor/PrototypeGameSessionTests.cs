@@ -487,5 +487,94 @@ namespace Tests.Editor
             StringAssert.Contains("(10): 1 hit(s)", HudText.BattleSummary(report));
             StringAssert.Contains("Defender holds D.", HudText.BattleSummary(report));
         }
+
+        /// <summary>
+        /// Buys units until one AP is left, then spends it moving the starting unit. The bought units stay at home
+        /// and can still move, so only the AP pool blocks further commands.
+        /// </summary>
+        private static void SpendAllActionPoints(PrototypeGameSession session)
+        {
+            for (int i = 1; i < PlayerProfile.BaseActionPoints; i++)
+            {
+                Assert.AreEqual(CommandResult.Ok, session.BuyUnit(AttackerHome));
+            }
+
+            Assert.AreEqual(CommandResult.Ok, Move(session, AttackerHome, NeutralLand, 1));
+            Assert.AreEqual(0, session.CurrentPlayer.ActionPoints);
+        }
+
+        [Test]
+        public void ActionPoints_StartAtBase_AndEachActionSpendsOne()
+        {
+            var session = CreateSession();
+            Assert.AreEqual(PlayerProfile.BaseActionPoints, session.CurrentPlayer.ActionPoints);
+
+            session.BuyUnit(AttackerHome);
+            MoveAllMovable(session, AttackerHome, NeutralLand);
+
+            Assert.AreEqual(PlayerProfile.BaseActionPoints - 2, session.CurrentPlayer.ActionPoints);
+        }
+
+        [Test]
+        public void ActionPoints_InitiatingBattle_SpendsOne()
+        {
+            var session = CreateSession();
+
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+
+            Assert.AreEqual(PlayerProfile.BaseActionPoints - 1, session.CurrentPlayer.ActionPoints);
+        }
+
+        [Test]
+        public void ActionPoints_RejectedCommandsDoNotSpendPoints()
+        {
+            var session = CreateSession();
+
+            session.BuyUnit(DefenderHome);
+            Move(session, AttackerHome, DefenderHome);
+
+            Assert.AreEqual(PlayerProfile.BaseActionPoints, session.CurrentPlayer.ActionPoints);
+        }
+
+        [Test]
+        public void BuyUnit_IsRejected_WhenActionPointsAreDepleted()
+        {
+            var session = CreateSession();
+            SpendAllActionPoints(session);
+            int gold = session.CurrentPlayer.Gold;
+            int units = session.Provinces[AttackerHome].Units.Count;
+
+            Assert.AreEqual(CommandResult.NoActionPoints, session.BuyUnit(AttackerHome));
+
+            Assert.AreEqual(gold, session.CurrentPlayer.Gold);
+            Assert.AreEqual(units, session.Provinces[AttackerHome].Units.Count);
+        }
+
+        [Test]
+        public void MoveArmy_IsRejected_WhenActionPointsAreDepleted()
+        {
+            var session = CreateSession();
+            SpendAllActionPoints(session);
+
+            Assert.AreEqual(CommandResult.NoActionPoints, session.ValidateMoveOrigin(AttackerHome));
+            Assert.AreEqual(CommandResult.NoActionPoints, MoveAllMovable(session, AttackerHome, NeutralLand));
+
+            Assert.AreEqual(1, session.Provinces[NeutralLand].Units.Count);
+            Assert.AreEqual(PlayerProfile.BaseActionPoints - 1, session.Provinces[AttackerHome].Units.Count);
+        }
+
+        [Test]
+        public void EndTurn_IsFree_AndRefillsActionPointsForNextTurn()
+        {
+            var session = CreateSession();
+            SpendAllActionPoints(session);
+
+            Assert.AreEqual(CommandResult.Ok, session.EndTurn());
+            Assert.AreEqual(PlayerProfile.BaseActionPoints, session.CurrentPlayer.ActionPoints);
+            session.EndTurn();
+
+            Assert.AreEqual(Attacker, session.CurrentPlayer.PlayerId);
+            Assert.AreEqual(PlayerProfile.BaseActionPoints, session.CurrentPlayer.ActionPoints);
+        }
     }
 }
