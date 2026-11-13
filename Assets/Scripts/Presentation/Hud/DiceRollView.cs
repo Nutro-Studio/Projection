@@ -5,7 +5,7 @@ using UnityEngine.UIElements;
 namespace Presentation.Hud
 {
     /// <summary>
-    /// Tumbles the 3d4 of both sides, then settles on the rolls the combat service produced.
+    /// Tumbles the 3d4 of both sides (faces 0-3), then settles on the rolls the combat service produced.
     /// </summary>
     public sealed class DiceRollView
     {
@@ -110,7 +110,7 @@ namespace Presentation.Hud
         {
             for (int i = 0; i < dice.Length; i++)
             {
-                dice[i].text = _tumbleRandom.Next(1, DieSides + 1).ToString();
+                dice[i].text = _tumbleRandom.Next(0, DieSides).ToString();
             }
         }
 

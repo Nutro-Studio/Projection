@@ -20,7 +20,7 @@ namespace Core.Combat
                 throw new InvalidOperationException("Combat requires at least one unit on both sides.");
             }
 
-            // 1. Roll 3d4 for both sides (Range: 3-12)
+            // 1. Roll 3d4 for both sides (Root-style d4 [0-3], Sum Range: 0-9)
             var (a1, a2, a3) = _diceRoller.Roll3D4();
             var (d1, d2, d3) = _diceRoller.Roll3D4();
             int rollSumA = a1 + a2 + a3;

@@ -309,13 +309,13 @@ namespace Tests.Editor
             var session = CreateSession();
             BattleReport report = null;
             session.BattleResolved += battle => report = battle;
-            _dice.AttackerRoll = (4, 3, 3);
+            _dice.AttackerRoll = (3, 2, 2);
             _dice.DefenderRoll = (1, 1, 1);
 
             session.BuyUnit(AttackerHome);
             MoveAllMovable(session, AttackerHome, DefenderHome);
 
-            Assert.AreEqual((4, 3, 3), report.Result.AttackerRolls);
+            Assert.AreEqual((3, 2, 2), report.Result.AttackerRolls);
             Assert.AreEqual((1, 1, 1), report.Result.DefenderRolls);
             Assert.AreEqual(1, report.DefenderCasualties);
             Assert.AreEqual(1, report.AttackerCasualties);
@@ -491,12 +491,12 @@ namespace Tests.Editor
             var session = CreateSession();
             BattleReport report = null;
             session.BattleResolved += battle => report = battle;
-            _dice.AttackerRoll = (4, 3, 3);
+            _dice.AttackerRoll = (3, 2, 2);
             _dice.DefenderRoll = (1, 1, 1);
 
             MoveAllMovable(session, AttackerHome, DefenderHome);
 
-            StringAssert.Contains("(10): 1 hit(s)", HudText.BattleSummary(report));
+            StringAssert.Contains("(7): 1 hit(s)", HudText.BattleSummary(report));
             StringAssert.Contains("Defender holds D.", HudText.BattleSummary(report));
         }
 
@@ -694,7 +694,7 @@ namespace Tests.Editor
             session.EndTurn();
             session.BuyUnit(AttackerHome);
             session.BuyUnit(AttackerHome);
-            _dice.AttackerRoll = (4, 4, 4);
+            _dice.AttackerRoll = (3, 3, 3);
             _dice.DefenderRoll = (1, 1, 1);
 
             MoveAllMovable(session, AttackerHome, DefenderHome);

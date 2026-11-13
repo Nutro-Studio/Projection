@@ -6,7 +6,7 @@ namespace Core.Combat
     {
         private readonly Random _rng = new();
 
-        public int RollD4() => _rng.Next(1, 5);
+        public int RollD4() => _rng.Next(0, 4);
 
         public (int roll1, int roll2, int roll3) Roll3D4()
         {
