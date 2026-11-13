@@ -224,6 +224,110 @@ namespace Presentation.Prototype
         public int GetRebellionCellCost(int provinceId) =>
             _provinces[provinceId].HasChurch ? RebellionCellCost * 2 : RebellionCellCost;
 
+        /// <summary>
+        /// Guerrillas are non-landed, so a cell can go into any province that does not hold one yet.
+        /// </summary>
+        public CommandResult PlaceRebellionCell(int provinceId)
+        {
+            var check = ValidateAction(FactionType.Guerrillas);
+            if (check != CommandResult.Ok) return check;
+
+            var province = _provinces[provinceId];
+            int cost = GetRebellionCellCost(provinceId);
+            if (province.RebellionCell != null) return CommandResult.AlreadyBuilt;
+            if (CurrentPlayer.Gold < cost) return CommandResult.NotEnoughGold;
+
+            SetProvince(province.WithRebellionCell(new RebellionCell(CurrentPlayer.PlayerId, false)));
+            AddGold(_currentPlayerIndex, -cost);
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// Turns the player's undercover cell in the province into an open rebellion.
+        /// </summary>
+        public CommandResult InciteRebellion(int provinceId)
+        {
+            var check = ValidateAction(FactionType.Guerrillas);
+            if (check != CommandResult.Ok) return check;
+
+            var province = _provinces[provinceId];
+            var cell = province.RebellionCell;
+            if (cell == null || cell.OwnerId != CurrentPlayer.PlayerId) return CommandResult.NoRebellionCell;
+            if (cell.IsOpenRebellion) return CommandResult.AlreadyBuilt;
+
+            SetProvince(province.WithRebellionCell(new RebellionCell(cell.OwnerId, true)));
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// Militant counter to Guerrillas: removes an open Rebellion from a province the Militant army occupies.
+        /// Undercover cells cannot be targeted until they rise.
+        /// </summary>
+        public CommandResult MartialLaw(int provinceId)
+        {
+            var check = ValidateOccupation(provinceId, CurrentPlayer.Faction == FactionType.Militants);
+            if (check != CommandResult.Ok) return check;
+
+            var province = _provinces[provinceId];
+            if (province.RebellionCell == null || !province.RebellionCell.IsOpenRebellion)
+            {
+                return CommandResult.NothingToPurge;
+            }
+
+            SetProvince(province.WithRebellionCell(null));
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// Militant counter to Zealots: removes the Religious Presence token from a province the Militant army
+        /// occupies.
+        /// </summary>
+        public CommandResult Inquisition(int provinceId)
+        {
+            var check = ValidateOccupation(provinceId, CurrentPlayer.Faction == FactionType.Militants);
+            if (check != CommandResult.Ok) return check;
+
+            var province = _provinces[provinceId];
+            if (province.PresenceToken == null) return CommandResult.NothingToPurge;
+
+            SetProvince(province.WithPresence(null));
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// A landed army occupying the province dismantles an enemy Church (unless the province is fortified, which
+        /// keeps it a Religious Bastion) and cleanses an enemy Religious Presence token.
+        /// </summary>
+        public CommandResult CleanseProvince(int provinceId)
+        {
+            var player = CurrentPlayer;
+            // Militants and Zealots are the landed archetypes.
+            bool isLanded = player.Faction == FactionType.Militants || player.Faction == FactionType.Zealots;
+            var check = ValidateOccupation(provinceId, isLanded);
+            if (check != CommandResult.Ok) return check;
+
+            var province = _provinces[provinceId];
+            bool dismantleChurch = province.HasChurch && province.ChurchOwnerId != player.PlayerId && !province.HasFort;
+            bool cleanseToken = province.PresenceToken != null && province.PresenceToken.OwnerId != player.PlayerId;
+            if (!dismantleChurch && !cleanseToken) return CommandResult.NothingToPurge;
+
+            if (dismantleChurch) province = province.WithChurch(ProvinceState.NoChurch);
+            if (cleanseToken) province = province.WithPresence(null);
+
+            SetProvince(province);
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
         public List<int> GetMovableUnitIds(int provinceId)
         {
             var units = _provinces[provinceId].Units;
@@ -430,6 +534,28 @@ namespace Presentation.Prototype
             return CommandResult.Ok;
         }
 
+        private CommandResult ValidateAction(FactionType requiredFaction)
+        {
+            if (IsGameOver) return CommandResult.GameOver;
+            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
+            if (CurrentPlayer.Faction != requiredFaction) return CommandResult.WrongFaction;
+
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// The player's faction must be allowed the action and hold the province with a military unit.
+        /// </summary>
+        private CommandResult ValidateOccupation(int provinceId, bool factionAllowed)
+        {
+            var check = ValidateOwnProvinceAction(provinceId);
+            if (check != CommandResult.Ok) return check;
+            if (!factionAllowed) return CommandResult.WrongFaction;
+            if (IndexOfKind(_provinces[provinceId].Units, UnitKind.Military) < 0) return CommandResult.NoMilitaryUnits;
+
+            return CommandResult.Ok;
+        }
+
         private CommandResult Recruit(int provinceId, int cost, UnitKind kind)
         {
             var province = _provinces[provinceId];
@@ -455,7 +581,8 @@ namespace Presentation.Prototype
         private void CollectChurchTithes()
         {
             var payer = CurrentPlayer;
-            if (payer.Faction == FactionType.Zealots) return;
+            // Zealots own the Churches and Guerrillas are exempt from tithes.
+            if (payer.Faction == FactionType.Zealots || payer.Faction == FactionType.Guerrillas) return;
 
             for (int i = 0; i < _provinces.Length; i++)
             {

@@ -50,6 +50,8 @@ namespace Presentation.Hud
             CommandResult.NoMilitaryUnits => "This needs a military unit in the province.",
             CommandResult.MissionariesCannotConquer => "Missionaries cannot enter land you do not hold.",
             CommandResult.NoTargetUnits => "There are no enemy units to target.",
+            CommandResult.NoRebellionCell => "You have no undercover cell here.",
+            CommandResult.NothingToPurge => "There is nothing here to purge.",
             _ => result.ToString()
         };
 
