@@ -52,6 +52,7 @@ namespace Presentation.Hud
             CommandResult.NoTargetUnits => "There are no enemy units to target.",
             CommandResult.NoRebellionCell => "You have no undercover cell here.",
             CommandResult.NothingToPurge => "There is nothing here to purge.",
+            CommandResult.InvalidBattleTarget => "Choose a valid enemy force in this province.",
             _ => result.ToString()
         };
 

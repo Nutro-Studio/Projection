@@ -23,7 +23,8 @@ namespace Presentation.Prototype
         MissionariesCannotConquer,
         NoTargetUnits,
         NoRebellionCell,
-        NothingToPurge
+        NothingToPurge,
+        InvalidBattleTarget
     }
 
     /// <summary>
@@ -97,6 +98,7 @@ namespace Presentation.Prototype
 
         /// <summary>Player who built the Church here, or <see cref="NoChurch"/>.</summary>
         public int ChurchOwnerId { get; }
+
         public ReligiousPresenceToken PresenceToken { get; }
         public RebellionCell RebellionCell { get; }
 
@@ -126,6 +128,9 @@ namespace Presentation.Prototype
 
         public ProvinceState WithOccupation(int ownerId, IReadOnlyList<CombatUnit> units) =>
             new(Id, Name, HasFort, Neighbours, ownerId, units, ChurchOwnerId, PresenceToken, RebellionCell);
+
+        public ProvinceState WithUnits(IReadOnlyList<CombatUnit> units) =>
+            new(Id, Name, HasFort, Neighbours, OwnerId, units, ChurchOwnerId, PresenceToken, RebellionCell);
 
         public ProvinceState WithChurch(int churchOwnerId) =>
             new(Id, Name, HasFort, Neighbours, OwnerId, Units, churchOwnerId, PresenceToken, RebellionCell);

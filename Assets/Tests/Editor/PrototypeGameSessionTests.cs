@@ -265,7 +265,7 @@ namespace Tests.Editor
         {
             var session = CreateSession();
 
-            Assert.AreEqual(CommandResult.NotYourProvince, Move(session, DefenderHome, NeutralLand, 100));
+            Assert.AreEqual(CommandResult.NoUnits, Move(session, DefenderHome, NeutralLand, 100));
             Assert.AreEqual(1, session.Provinces[DefenderHome].Units.Count);
         }
 
@@ -314,6 +314,7 @@ namespace Tests.Editor
 
             session.BuyUnit(AttackerHome);
             MoveAllMovable(session, AttackerHome, DefenderHome);
+            Assert.AreEqual(CommandResult.Ok, session.InitiateBattle(DefenderHome, Defender));
 
             Assert.AreEqual((3, 2, 2), report.Result.AttackerRolls);
             Assert.AreEqual((1, 1, 1), report.Result.DefenderRolls);
@@ -326,7 +327,7 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void MoveArmy_WinningBattle_CapturesProvinceAndRetreatsSurvivors()
+        public void InitiateBattle_WinningBattle_CapturesProvinceAndRetreatsSurvivors()
         {
             var session = CreateSession(defenderUnits: 5, middleOwner: Defender);
             _dice.AttackerRoll = (2, 1, 1);
@@ -337,7 +338,20 @@ namespace Tests.Editor
             BattleReport report = null;
             session.BattleResolved += battle => report = battle;
 
+            // 3 units move in (leaving 1 behind at AttackerHome so 1 AP remains for InitiateBattle)
+            var threeUnits = new[]
+            {
+                session.Provinces[AttackerHome].Units[0].Id,
+                session.Provinces[AttackerHome].Units[1].Id,
+                session.Provinces[AttackerHome].Units[2].Id
+            };
+            session.MoveArmy(new MoveArmyCommand(AttackerHome, DefenderHome, threeUnits));
+            // Give Attacker 1 more unit or test with 4 units across two turns:
+            session.EndTurn();
+            session.EndTurn();
             MoveAllMovable(session, AttackerHome, DefenderHome);
+
+            Assert.AreEqual(CommandResult.Ok, session.InitiateBattle(DefenderHome, Defender));
 
             Assert.AreEqual(4, report.DefenderCasualties);
             Assert.AreEqual(3, report.AttackerCasualties);
@@ -348,7 +362,7 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void MoveArmy_WinningBattle_DefendersWithNoRetreatAreLost()
+        public void InitiateBattle_WinningBattle_DefendersWithNoRetreatAreLost()
         {
             var session = CreateSession(defenderUnits: 5);
             _dice.AttackerRoll = (2, 1, 1);
@@ -358,13 +372,17 @@ namespace Tests.Editor
             session.BuyUnit(AttackerHome);
 
             MoveAllMovable(session, AttackerHome, DefenderHome);
+            session.EndTurn();
+            session.EndTurn();
+
+            Assert.AreEqual(CommandResult.Ok, session.InitiateBattle(DefenderHome, Defender));
 
             Assert.AreEqual(Attacker, session.Provinces[DefenderHome].OwnerId);
             Assert.AreEqual(0, session.Provinces[NeutralLand].Units.Count);
         }
 
         [Test]
-        public void MoveArmy_FortifiedMilitantDefender_AbsorbsHit_AndHoldsProvince()
+        public void InitiateBattle_FortifiedMilitantDefender_AbsorbsHit_AndHoldsProvince()
         {
             var session = CreateSession(defenderFort: true, defenderFaction: FactionType.Militants);
             _dice.AttackerRoll = (2, 2, 2);
@@ -373,12 +391,13 @@ namespace Tests.Editor
             session.BattleResolved += battle => report = battle;
 
             MoveAllMovable(session, AttackerHome, DefenderHome);
+            Assert.AreEqual(CommandResult.Ok, session.InitiateBattle(DefenderHome, Defender));
 
             Assert.AreEqual(0, report.DefenderCasualties);
             Assert.AreEqual(1, report.AttackerCasualties);
             Assert.IsFalse(report.ProvinceCaptured);
             Assert.AreEqual(1, session.Provinces[DefenderHome].Units[0].CurrentHp);
-            Assert.AreEqual(0, session.Provinces[AttackerHome].Units.Count);
+            Assert.AreEqual(1, session.Provinces[DefenderHome].Units.Count);
         }
 
         [Test]
@@ -464,7 +483,7 @@ namespace Tests.Editor
             interaction.BeginMove();
 
             Assert.IsFalse(interaction.IsTargetingMove);
-            Assert.AreEqual(CommandResult.NotYourProvince, interaction.LastResult);
+            Assert.AreEqual(CommandResult.NoUnits, interaction.LastResult);
         }
 
         [Test]
@@ -490,6 +509,7 @@ namespace Tests.Editor
             _dice.DefenderRoll = (1, 1, 1);
 
             MoveAllMovable(session, AttackerHome, DefenderHome);
+            session.InitiateBattle(DefenderHome, Defender);
 
             StringAssert.Contains("(7): 1 hit(s)", HudText.BattleSummary(report));
             StringAssert.Contains("Defender holds D.", HudText.BattleSummary(report));
@@ -526,10 +546,11 @@ namespace Tests.Editor
         public void ActionPoints_InitiatingBattle_SpendsOne()
         {
             var session = CreateSession();
-
             MoveAllMovable(session, AttackerHome, DefenderHome);
 
-            Assert.AreEqual(PlayerProfile.BaseActionPoints - 1, session.CurrentPlayer.ActionPoints);
+            session.InitiateBattle(DefenderHome, Defender);
+
+            Assert.AreEqual(PlayerProfile.BaseActionPoints - 2, session.CurrentPlayer.ActionPoints);
         }
 
         [Test]
@@ -648,9 +669,9 @@ namespace Tests.Editor
             int missionaryId = session.Provinces[AttackerHome].Units[1].Id;
 
             Assert.AreEqual(CommandResult.MissionariesCannotConquer,
-                Move(session, AttackerHome, NeutralLand, missionaryId));
+                Move(session, AttackerHome, DefenderHome, missionaryId));
             Assert.AreEqual(CommandResult.MissionariesCannotConquer,
-                Move(session, AttackerHome, NeutralLand, 1, missionaryId));
+                Move(session, AttackerHome, DefenderHome, 1, missionaryId));
             Assert.AreEqual(CommandResult.Ok, Move(session, AttackerHome, NeutralLand, 1));
             Assert.AreEqual(CommandResult.Ok, Move(session, AttackerHome, NeutralLand, missionaryId));
 
@@ -659,7 +680,7 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void MoveArmy_MissionaryOnlyGarrison_FallsWithoutBattle_AndMissionariesRetreat()
+        public void MoveArmy_MissionaryOnlyGarrison_CoexistsWithoutBattle()
         {
             var session = CreateSession();
             int battles = 0;
@@ -672,13 +693,14 @@ namespace Tests.Editor
             Assert.AreEqual(CommandResult.Ok, MoveAllMovable(session, AttackerHome, DefenderHome));
 
             Assert.AreEqual(0, battles);
-            Assert.AreEqual(Attacker, session.Provinces[DefenderHome].OwnerId);
-            Assert.AreEqual(1, session.Provinces[DefenderHome].Units.Count);
-            Assert.AreEqual(2, session.Provinces[NeutralLand].Units.Count, "The Missionary falls back.");
+            Assert.AreEqual(Attacker, session.Provinces[DefenderHome].OwnerId,
+                "Attacker military (1 strength) takes hegemony over Missionary-only garrison (0 strength).");
+            Assert.AreEqual(2, session.Provinces[DefenderHome].Units.Count,
+                "Missionary remains co-existing in the province.");
         }
 
         [Test]
-        public void MoveArmy_DefendingMissionaries_DoNotFightOrRaiseHitCap()
+        public void InitiateBattle_DefendingMissionaries_DoNotFightOrRaiseHitCap()
         {
             var session = CreateSession(middleOwner: Defender);
             BattleReport report = null;
@@ -693,15 +715,15 @@ namespace Tests.Editor
             _dice.DefenderRoll = (1, 1, 1);
 
             MoveAllMovable(session, AttackerHome, DefenderHome);
+            Assert.AreEqual(CommandResult.Ok, session.InitiateBattle(DefenderHome, Defender));
 
             Assert.AreEqual(1, report.DefenderCount);
             Assert.AreEqual(1, report.DefenderCasualties);
             Assert.AreEqual(1, report.AttackerCasualties, "Only the one soldier sets the defender's hit cap.");
             Assert.IsTrue(report.ProvinceCaptured);
             Assert.AreEqual(Attacker, session.Provinces[DefenderHome].OwnerId);
-            Assert.AreEqual(2, session.Provinces[DefenderHome].Units.Count);
-            Assert.AreEqual(2, session.Provinces[NeutralLand].Units.Count);
-            Assert.AreEqual(UnitKind.Missionary, session.Provinces[NeutralLand].Units[0].Kind);
+            Assert.AreEqual(4, session.Provinces[DefenderHome].Units.Count,
+                "2 surviving attackers + 2 non-combatant missionaries co-exist.");
         }
 
         [Test]
@@ -901,6 +923,82 @@ namespace Tests.Editor
 
             Assert.AreEqual(PrototypeGameSession.StartingGold, session.CurrentPlayer.Gold);
             Assert.AreEqual(2, session.Provinces[DefenderHome].Units.Count);
+        }
+
+        [Test]
+        public void MoveArmy_IntoOccupiedProvince_CoexistsWithoutAutomaticBattle()
+        {
+            var session = CreateSession();
+            int battles = 0;
+            session.BattleResolved += _ => battles++;
+
+            Assert.AreEqual(CommandResult.Ok, MoveAllMovable(session, AttackerHome, DefenderHome));
+
+            Assert.AreEqual(0, battles);
+            Assert.AreEqual(2, session.Provinces[DefenderHome].Units.Count);
+            Assert.AreEqual(ProvinceState.NeutralOwner, session.Provinces[DefenderHome].OwnerId,
+                "Equal strength (1 vs 1) results in a tie and neutral/contested hegemony.");
+        }
+
+        [Test]
+        public void ProvinceHegemony_StrictMajorityOfStrengthPoints_DeterminesOwnership()
+        {
+            var session =
+                CreateSession(defenderUnits: 1, defenderFort: true); // Defender strength = 1 unit + 1 fort = 2
+            session.BuyUnit(AttackerHome);
+            session.BuyUnit(AttackerHome); // Attacker now has 3 units
+
+            // Move 2 units into DefenderHome (2 vs 2 strength -> tie -> NeutralOwner)
+            var twoUnits = new[] { 1, session.Provinces[AttackerHome].Units[1].Id };
+            Assert.AreEqual(CommandResult.Ok,
+                session.MoveArmy(new MoveArmyCommand(AttackerHome, DefenderHome, twoUnits)));
+            Assert.AreEqual(ProvinceState.NeutralOwner, session.Provinces[DefenderHome].OwnerId);
+
+            // Move 3rd unit into DefenderHome (3 vs 1 strength since fort is no longer Defender-owned -> Attacker takes hegemony)
+            int thirdUnitId = session.Provinces[AttackerHome].Units[0].Id;
+            Assert.AreEqual(CommandResult.Ok, Move(session, AttackerHome, DefenderHome, thirdUnitId));
+            Assert.AreEqual(Attacker, session.Provinces[DefenderHome].OwnerId);
+            Assert.AreEqual(4, session.Provinces[DefenderHome].Units.Count,
+                "Defender unit still co-exists in the province.");
+        }
+
+        [Test]
+        public void InitiateBattle_ResolvesCombatBetweenCoexistingForces_AndSpendsActionPoint()
+        {
+            var session = CreateSession();
+            BattleReport report = null;
+            session.BattleResolved += battle => report = battle;
+            _dice.AttackerRoll = (3, 2, 2);
+            _dice.DefenderRoll = (1, 1, 1);
+
+            session.BuyUnit(AttackerHome);
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+
+            Assert.IsNull(report, "Moving into DefenderHome must not trigger battle automatically.");
+            Assert.AreEqual(PlayerProfile.BaseActionPoints - 2, session.CurrentPlayer.ActionPoints);
+
+            Assert.AreEqual(CommandResult.Ok, session.InitiateBattle(DefenderHome, Defender));
+
+            Assert.IsNotNull(report);
+            Assert.AreEqual(PlayerProfile.BaseActionPoints - 3, session.CurrentPlayer.ActionPoints);
+            Assert.AreEqual(1, report.DefenderCasualties);
+            Assert.AreEqual(1, report.AttackerCasualties);
+            Assert.AreEqual(Attacker, session.Provinces[DefenderHome].OwnerId);
+            Assert.AreEqual(1, session.Provinces[DefenderHome].Units.Count);
+        }
+
+        [Test]
+        public void InitiateBattle_IsRejected_WhenTargetOrAttackerMilitaryMissing()
+        {
+            var session = CreateSession();
+
+            // Attacker has no units in DefenderHome yet
+            Assert.AreEqual(CommandResult.NoMilitaryUnits, session.InitiateBattle(DefenderHome, Defender));
+
+            // Move to NeutralLand where Defender has no units
+            MoveAllMovable(session, AttackerHome, NeutralLand);
+            Assert.AreEqual(CommandResult.NoTargetUnits, session.InitiateBattle(NeutralLand, Defender));
+            Assert.AreEqual(CommandResult.InvalidBattleTarget, session.InitiateBattle(NeutralLand, Attacker));
         }
     }
 }
