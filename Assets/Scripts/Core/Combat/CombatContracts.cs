@@ -10,11 +10,18 @@ namespace Core.Combat
         Guerrillas
     }
 
+    public enum UnitKind
+    {
+        Military,
+        Missionary
+    }
+
     public record CombatUnit(
         int Id,
         FactionType Faction,
         int MaxHp,
-        int CurrentHp
+        int CurrentHp,
+        UnitKind Kind = UnitKind.Military
     );
 
     public record CombatContext(
