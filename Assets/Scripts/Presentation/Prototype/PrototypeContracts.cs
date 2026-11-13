@@ -15,7 +15,23 @@ namespace Presentation.Prototype
         UnitsAlreadyMoved,
         NoUnitsSelected,
         InvalidUnitSelection,
-        NoActionPoints
+        NoActionPoints,
+        WrongFaction,
+        NoMissionary,
+        AlreadyBuilt,
+        NoMilitaryUnits,
+        MissionariesCannotConquer,
+        NoTargetUnits
+    }
+
+    /// <summary>
+    /// Zealot consecration marker. A province holds at most one.
+    /// </summary>
+    public sealed class ReligiousPresenceToken
+    {
+        public int OwnerId { get; }
+
+        public ReligiousPresenceToken(int ownerId) => OwnerId = ownerId;
     }
 
     public sealed class MoveArmyCommand
@@ -45,11 +61,15 @@ namespace Presentation.Prototype
 
         PlayerProfile EvaluatePlayerTurnState(PlayerProfile player, int controlledProvinces);
         int CalculateRevenue(FactionType faction, int controlledProvinces);
+
+        /// <summary>One side of a contested roll such as Divine Conversion: the sum of 3d4.</summary>
+        int RollContest();
     }
 
     public sealed class ProvinceState
     {
         public const int NeutralOwner = -1;
+        public const int NoChurch = -1;
 
         public int Id { get; }
         public string Name { get; }
@@ -58,13 +78,21 @@ namespace Presentation.Prototype
         public int OwnerId { get; }
         public IReadOnlyList<CombatUnit> Units { get; }
 
+        /// <summary>Player who built the Church here, or <see cref="NoChurch"/>.</summary>
+        public int ChurchOwnerId { get; }
+        public ReligiousPresenceToken PresenceToken { get; }
+
+        public bool HasChurch => ChurchOwnerId != NoChurch;
+
         public ProvinceState(
             int id,
             string name,
             bool hasFort,
             IReadOnlyList<int> neighbours,
             int ownerId,
-            IReadOnlyList<CombatUnit> units)
+            IReadOnlyList<CombatUnit> units,
+            int churchOwnerId = NoChurch,
+            ReligiousPresenceToken presenceToken = null)
         {
             Id = id;
             Name = name;
@@ -72,10 +100,18 @@ namespace Presentation.Prototype
             Neighbours = neighbours;
             OwnerId = ownerId;
             Units = units;
+            ChurchOwnerId = churchOwnerId;
+            PresenceToken = presenceToken;
         }
 
         public ProvinceState WithOccupation(int ownerId, IReadOnlyList<CombatUnit> units) =>
-            new(Id, Name, HasFort, Neighbours, ownerId, units);
+            new(Id, Name, HasFort, Neighbours, ownerId, units, ChurchOwnerId, PresenceToken);
+
+        public ProvinceState WithChurch(int churchOwnerId) =>
+            new(Id, Name, HasFort, Neighbours, OwnerId, Units, churchOwnerId, PresenceToken);
+
+        public ProvinceState WithPresence(ReligiousPresenceToken presenceToken) =>
+            new(Id, Name, HasFort, Neighbours, OwnerId, Units, ChurchOwnerId, presenceToken);
 
         public bool IsAdjacentTo(int provinceId)
         {

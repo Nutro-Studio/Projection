@@ -44,6 +44,12 @@ namespace Presentation.Hud
             CommandResult.NoUnitsSelected => "Select at least one unit to move.",
             CommandResult.InvalidUnitSelection => "The selected units are not all in this province.",
             CommandResult.NoActionPoints => "No action points left. End the turn.",
+            CommandResult.WrongFaction => "Your faction cannot do that.",
+            CommandResult.NoMissionary => "This needs a Missionary in the province.",
+            CommandResult.AlreadyBuilt => "This province already has it.",
+            CommandResult.NoMilitaryUnits => "This needs a military unit in the province.",
+            CommandResult.MissionariesCannotConquer => "Missionaries cannot enter land you do not hold.",
+            CommandResult.NoTargetUnits => "There are no enemy units to target.",
             _ => result.ToString()
         };
 

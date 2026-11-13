@@ -13,6 +13,11 @@ namespace Presentation.Prototype
     {
         public const int StartingGold = 10;
         public const int UnitCost = 3;
+        public const int MissionaryCost = 3;
+        public const int ChurchCost = 4;
+        public const int ChurchTithe = 1;
+        public const int RebellionCellCost = 2;
+        public const int ConversionLimit = 2;
         public const int VictoryPointsPerProvince = 1;
 
         private readonly IGameRules _rules;
@@ -92,42 +97,132 @@ namespace Presentation.Prototype
 
         public CommandResult ValidateMoveOrigin(int provinceId)
         {
-            if (IsGameOver) return CommandResult.GameOver;
-            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
+            var check = ValidateOwnProvinceAction(provinceId);
+            if (check != CommandResult.Ok) return check;
 
             var province = _provinces[provinceId];
-            if (province.OwnerId != CurrentPlayer.PlayerId) return CommandResult.NotYourProvince;
             if (province.Units.Count == 0) return CommandResult.NoUnits;
             if (CountMovableUnits(provinceId) == 0) return CommandResult.UnitsAlreadyMoved;
 
             return CommandResult.Ok;
         }
 
+        /// <summary>
+        /// Zealots cannot recruit standing armies; they field only converted or inherited military units.
+        /// </summary>
         public CommandResult BuyUnit(int provinceId)
         {
-            if (IsGameOver) return CommandResult.GameOver;
+            var check = ValidateOwnProvinceAction(provinceId);
+            if (check != CommandResult.Ok) return check;
+            if (CurrentPlayer.Faction == FactionType.Zealots) return CommandResult.WrongFaction;
+
+            return Recruit(provinceId, UnitCost, UnitKind.Military);
+        }
+
+        public CommandResult BuyMissionary(int provinceId)
+        {
+            var check = ValidateOwnProvinceAction(provinceId);
+            if (check != CommandResult.Ok) return check;
+            if (CurrentPlayer.Faction != FactionType.Zealots) return CommandResult.WrongFaction;
+
+            return Recruit(provinceId, MissionaryCost, UnitKind.Missionary);
+        }
+
+        public CommandResult BuildChurch(int provinceId)
+        {
+            var check = ValidateOwnProvinceAction(provinceId);
+            if (check != CommandResult.Ok) return check;
 
             var province = _provinces[provinceId];
             var player = CurrentPlayer;
-            if (player.ActionPoints <= 0) return CommandResult.NoActionPoints;
-            if (province.OwnerId != player.PlayerId) return CommandResult.NotYourProvince;
-            if (player.Gold < UnitCost) return CommandResult.NotEnoughGold;
+            if (player.Faction != FactionType.Zealots) return CommandResult.WrongFaction;
+            if (province.HasChurch) return CommandResult.AlreadyBuilt;
+            if (player.Gold < ChurchCost) return CommandResult.NotEnoughGold;
 
-            var units = new List<CombatUnit>(province.Units.Count + 1);
-            for (int i = 0; i < province.Units.Count; i++)
-            {
-                units.Add(province.Units[i]);
-            }
-
-            units.Add(new CombatUnit(_nextUnitId++, player.Faction, 1, 1));
-            SetProvince(province.WithOccupation(province.OwnerId, units));
-            _players[_currentPlayerIndex] = CopyProfile(player, player.Faction, player.Gold - UnitCost,
-                player.VictoryPoints, player.Units);
+            SetProvince(province.WithChurch(player.PlayerId));
+            AddGold(_currentPlayerIndex, -ChurchCost);
             SpendActionPoint();
-
             StateChanged?.Invoke();
             return CommandResult.Ok;
         }
+
+        /// <summary>
+        /// A Missionary spends the action to place a Religious Presence token in its province.
+        /// </summary>
+        public CommandResult Consecrate(int provinceId)
+        {
+            var check = ValidateOwnProvinceAction(provinceId);
+            if (check != CommandResult.Ok) return check;
+
+            var province = _provinces[provinceId];
+            if (CurrentPlayer.Faction != FactionType.Zealots) return CommandResult.WrongFaction;
+            if (IndexOfKind(province.Units, UnitKind.Missionary) < 0) return CommandResult.NoMissionary;
+            if (province.PresenceToken != null) return CommandResult.AlreadyBuilt;
+
+            SetProvince(province.WithPresence(new ReligiousPresenceToken(CurrentPlayer.PlayerId)));
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// Expends a Missionary for a contested roll against an adjacent enemy garrison. On a win up to
+        /// <see cref="ConversionLimit"/> enemy units keep their stats, join the Zealots and move to the
+        /// Missionary's province.
+        /// </summary>
+        public CommandResult DivineConversion(int missionaryProvinceId, int targetProvinceId)
+        {
+            var check = ValidateOwnProvinceAction(missionaryProvinceId);
+            if (check != CommandResult.Ok) return check;
+
+            var origin = _provinces[missionaryProvinceId];
+            var target = _provinces[targetProvinceId];
+            var player = CurrentPlayer;
+            if (player.Faction != FactionType.Zealots) return CommandResult.WrongFaction;
+
+            int missionaryIndex = IndexOfKind(origin.Units, UnitKind.Missionary);
+            if (missionaryIndex < 0) return CommandResult.NoMissionary;
+            if (!origin.IsAdjacentTo(targetProvinceId)) return CommandResult.NotAdjacent;
+            if (target.OwnerId == player.PlayerId || target.Units.Count == 0) return CommandResult.NoTargetUnits;
+
+            var garrison = new List<CombatUnit>(origin.Units);
+            garrison.RemoveAt(missionaryIndex);
+
+            int zealotRoll = _rules.RollContest();
+            int targetRoll = _rules.RollContest();
+            if (zealotRoll > targetRoll)
+            {
+                int converted = Math.Min(ConversionLimit, target.Units.Count);
+                var remaining = new List<CombatUnit>(target.Units.Count - converted);
+                for (int i = 0; i < target.Units.Count; i++)
+                {
+                    var unit = target.Units[i];
+                    if (i < converted)
+                    {
+                        var convert = unit with { Faction = FactionType.Zealots };
+                        garrison.Add(convert);
+                        _movedUnitIds.Add(convert.Id);
+                    }
+                    else
+                    {
+                        remaining.Add(unit);
+                    }
+                }
+
+                SetProvince(target.WithOccupation(target.OwnerId, remaining));
+            }
+
+            SetProvince(origin.WithOccupation(origin.OwnerId, garrison));
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// Sanctuary: a Church doubles the Gold a Guerrilla pays to raise a Rebellion cell in the province.
+        /// </summary>
+        public int GetRebellionCellCost(int provinceId) =>
+            _provinces[provinceId].HasChurch ? RebellionCellCost * 2 : RebellionCellCost;
 
         public List<int> GetMovableUnitIds(int provinceId)
         {
@@ -166,18 +261,30 @@ namespace Presentation.Prototype
 
             int playerId = CurrentPlayer.PlayerId;
             bool isFriendly = to.OwnerId == playerId;
+            // Missionaries are non-combatants: only military units may enter land the player does not hold.
+            if (!isFriendly && IndexOfKind(movers, UnitKind.Missionary) >= 0)
+            {
+                return CommandResult.MissionariesCannotConquer;
+            }
 
-            if (isFriendly || to.Units.Count == 0)
+            var defenders = UnitsOfKind(to.Units, UnitKind.Military);
+            var nonCombatants = UnitsOfKind(to.Units, UnitKind.Missionary);
+            if (isFriendly || defenders.Count == 0)
             {
                 SetProvince(from.WithOccupation(from.OwnerId, stayers));
-                SetProvince(to.WithOccupation(playerId, Concat(to.Units, movers)));
+                if (!isFriendly && nonCombatants.Count > 0)
+                {
+                    RetreatDefenders(to, to.OwnerId, nonCombatants);
+                }
+
+                SetProvince(to.WithOccupation(playerId, isFriendly ? Concat(to.Units, movers) : movers));
                 MarkMoved(movers);
                 SpendActionPoint();
                 StateChanged?.Invoke();
                 return CommandResult.Ok;
             }
 
-            ResolveBattle(from, to, movers, stayers);
+            ResolveBattle(from, to, movers, stayers, defenders, nonCombatants);
             SpendActionPoint();
             StateChanged?.Invoke();
             return CommandResult.Ok;
@@ -217,6 +324,7 @@ namespace Presentation.Prototype
 
                 _players[_currentPlayerIndex] =
                     CurrentPlayer with { ActionPoints = PlayerProfile.BaseActionPoints };
+                CollectChurchTithes();
             }
 
             StateChanged?.Invoke();
@@ -227,27 +335,30 @@ namespace Presentation.Prototype
             ProvinceState from,
             ProvinceState to,
             List<CombatUnit> movers,
-            List<CombatUnit> stayers)
+            List<CombatUnit> stayers,
+            List<CombatUnit> defenders,
+            List<CombatUnit> nonCombatants)
         {
             int attackerId = CurrentPlayer.PlayerId;
             int defenderId = to.OwnerId;
-            var result = _rules.ResolveSkirmish(movers, to.Units, GetPlayer(defenderId).Faction, to.HasFort);
+            var result = _rules.ResolveSkirmish(movers, defenders, GetPlayer(defenderId).Faction, to.HasFort);
+            var survivors = Concat(result.SurvivingDefenders, nonCombatants);
 
             bool captured = result.DefenderMustRetreat && result.SurvivingAttackers.Count > 0;
             if (captured)
             {
                 SetProvince(from.WithOccupation(from.OwnerId, stayers));
                 SetProvince(to.WithOccupation(attackerId, result.SurvivingAttackers));
-                RetreatDefenders(to, defenderId, result.SurvivingDefenders);
+                RetreatDefenders(to, defenderId, survivors);
             }
             else
             {
                 SetProvince(from.WithOccupation(from.OwnerId, Concat(stayers, result.SurvivingAttackers)));
-                SetProvince(to.WithOccupation(defenderId, result.SurvivingDefenders));
+                SetProvince(to.WithOccupation(defenderId, survivors));
             }
 
             MarkMoved(result.SurvivingAttackers);
-            BattleResolved?.Invoke(new BattleReport(to.Name, attackerId, defenderId, movers.Count, to.Units.Count,
+            BattleResolved?.Invoke(new BattleReport(to.Name, attackerId, defenderId, movers.Count, defenders.Count,
                 captured, result));
         }
 
@@ -310,6 +421,113 @@ namespace Presentation.Prototype
             return false;
         }
 
+        private CommandResult ValidateOwnProvinceAction(int provinceId)
+        {
+            if (IsGameOver) return CommandResult.GameOver;
+            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
+            if (_provinces[provinceId].OwnerId != CurrentPlayer.PlayerId) return CommandResult.NotYourProvince;
+
+            return CommandResult.Ok;
+        }
+
+        private CommandResult Recruit(int provinceId, int cost, UnitKind kind)
+        {
+            var province = _provinces[provinceId];
+            var player = CurrentPlayer;
+            if (player.Gold < cost) return CommandResult.NotEnoughGold;
+
+            var units = new List<CombatUnit>(province.Units)
+            {
+                new(_nextUnitId++, player.Faction, 1, 1, kind)
+            };
+
+            SetProvince(province.WithOccupation(province.OwnerId, units));
+            AddGold(_currentPlayerIndex, -cost);
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// Phase 1 upkeep: each non-Zealot unit standing in a Zealot Church province pays the Church owner one Gold.
+        /// Units the treasury cannot cover are disbanded.
+        /// </summary>
+        private void CollectChurchTithes()
+        {
+            var payer = CurrentPlayer;
+            if (payer.Faction == FactionType.Zealots) return;
+
+            for (int i = 0; i < _provinces.Length; i++)
+            {
+                var province = _provinces[i];
+                if (!province.HasChurch || province.OwnerId != payer.PlayerId) continue;
+
+                int churchOwnerIndex = IndexOfPlayer(province.ChurchOwnerId);
+                if (churchOwnerIndex < 0 || _players[churchOwnerIndex].Faction != FactionType.Zealots) continue;
+
+                var kept = new List<CombatUnit>(province.Units.Count);
+                for (int u = 0; u < province.Units.Count; u++)
+                {
+                    if (CurrentPlayer.Gold < ChurchTithe) continue;
+
+                    AddGold(_currentPlayerIndex, -ChurchTithe);
+                    AddGold(churchOwnerIndex, ChurchTithe);
+                    kept.Add(province.Units[u]);
+                }
+
+                if (kept.Count != province.Units.Count)
+                {
+                    SetProvince(province.WithOccupation(province.OwnerId, kept));
+                }
+            }
+        }
+
+        private int IndexOfPlayer(int playerId)
+        {
+            for (int i = 0; i < _players.Length; i++)
+            {
+                if (_players[i].PlayerId == playerId)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static List<CombatUnit> UnitsOfKind(IReadOnlyList<CombatUnit> units, UnitKind kind)
+        {
+            var matching = new List<CombatUnit>(units.Count);
+            for (int i = 0; i < units.Count; i++)
+            {
+                if (units[i].Kind == kind)
+                {
+                    matching.Add(units[i]);
+                }
+            }
+
+            return matching;
+        }
+
+        private static int IndexOfKind(IReadOnlyList<CombatUnit> units, UnitKind kind)
+        {
+            for (int i = 0; i < units.Count; i++)
+            {
+                if (units[i].Kind == kind)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private void AddGold(int playerIndex, int amount)
+        {
+            var player = _players[playerIndex];
+            _players[playerIndex] = player with { Gold = player.Gold + amount };
+        }
+
         private void SpendActionPoint()
         {
             var player = CurrentPlayer;
@@ -362,8 +580,7 @@ namespace Presentation.Prototype
                 var converted = new List<CombatUnit>(province.Units.Count);
                 for (int u = 0; u < province.Units.Count; u++)
                 {
-                    var unit = province.Units[u];
-                    converted.Add(new CombatUnit(unit.Id, faction, unit.MaxHp, unit.CurrentHp));
+                    converted.Add(province.Units[u] with { Faction = faction });
                 }
 
                 SetProvince(province.WithOccupation(playerId, converted));
