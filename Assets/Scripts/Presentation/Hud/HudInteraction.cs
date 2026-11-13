@@ -42,7 +42,8 @@ namespace Presentation.Hud
                 return;
             }
 
-            LastResult = _session.MoveArmy(origin, provinceId);
+            LastResult = _session.MoveArmy(
+                new MoveArmyCommand(origin, provinceId, _session.GetMovableUnitIds(origin)));
             if (LastResult == CommandResult.Ok)
             {
                 SelectedProvinceId = provinceId;
