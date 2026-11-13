@@ -521,6 +521,40 @@ namespace Presentation.Prototype
             return CommandResult.Ok;
         }
 
+        public bool CanShiftRuleset(FactionType targetFaction) =>
+            !IsGameOver && _rules.CanTriggerVoluntaryShift(CurrentPlayer, targetFaction,
+                CountProvinces(CurrentPlayer.PlayerId));
+
+        public bool CanDeclareAscension() =>
+            !IsGameOver && _rules.CanTriggerAscension(CurrentPlayer, CountProvinces(CurrentPlayer.PlayerId));
+
+        /// <summary>
+        /// Voluntary Ruleset Shift between landed archetypes. The penalties come from the CrisisDirector; units it
+        /// drops leave the board.
+        /// </summary>
+        public CommandResult ShiftRuleset(FactionType targetFaction)
+        {
+            if (IsGameOver) return CommandResult.GameOver;
+            if (!CanShiftRuleset(targetFaction)) return CommandResult.ShiftNotAllowed;
+
+            var player = CurrentPlayer with { Units = CollectUnits(CurrentPlayer.PlayerId) };
+            ApplyShift(_rules.ExecuteVoluntaryShift(player, targetFaction).UpdatedProfile);
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// Guerrillas holding enough provinces proclaim statehood as a landed archetype.
+        /// </summary>
+        public CommandResult DeclareAscension(FactionType targetFaction)
+        {
+            if (IsGameOver) return CommandResult.GameOver;
+            if (targetFaction == FactionType.Guerrillas || !CanDeclareAscension()) return CommandResult.ShiftNotAllowed;
+
+            var player = CurrentPlayer with { Units = CollectUnits(CurrentPlayer.PlayerId) };
+            ApplyShift(_rules.ExecuteAscension(player, targetFaction).UpdatedProfile);
+            return CommandResult.Ok;
+        }
+
         public CommandResult EndTurn()
         {
             if (IsGameOver) return CommandResult.GameOver;
@@ -894,6 +928,50 @@ namespace Presentation.Prototype
             }
 
             return units;
+        }
+
+        private void ApplyShift(PlayerProfile updated)
+        {
+            _players[_currentPlayerIndex] = updated;
+
+            var keptIds = new HashSet<int>();
+            for (int i = 0; i < updated.Units.Count; i++)
+            {
+                keptIds.Add(updated.Units[i].Id);
+            }
+
+            for (int i = 0; i < _provinces.Length; i++)
+            {
+                var province = _provinces[i];
+                if (province.OwnerId != updated.PlayerId && !HasUnitsOf(province.Units, updated.PlayerId)) continue;
+
+                var kept = new List<UnitInstance>(province.Units.Count);
+                for (int u = 0; u < province.Units.Count; u++)
+                {
+                    var unit = province.Units[u];
+                    if (unit.OwnerPlayerId != updated.PlayerId || keptIds.Contains(unit.Id))
+                    {
+                        kept.Add(unit);
+                    }
+                }
+
+                SetProvince(province.WithUnits(kept));
+            }
+
+            StateChanged?.Invoke();
+        }
+
+        private static bool HasUnitsOf(IReadOnlyList<UnitInstance> units, int playerId)
+        {
+            for (int i = 0; i < units.Count; i++)
+            {
+                if (units[i].OwnerPlayerId == playerId)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void SetProvince(ProvinceState province)

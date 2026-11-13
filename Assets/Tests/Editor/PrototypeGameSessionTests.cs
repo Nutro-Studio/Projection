@@ -16,70 +16,6 @@ namespace Tests.Editor
         private const int NeutralLand = 1;
         private const int DefenderHome = 2;
 
-        private class ScriptedDiceRoller : IDiceRoller
-        {
-            public (int, int, int) AttackerRoll = (2, 2, 2);
-            public (int, int, int) DefenderRoll = (1, 1, 1);
-            private bool _defenderNext;
-
-            public int RollD4() => 1;
-
-            public (int roll1, int roll2, int roll3) Roll3D4()
-            {
-                var roll = _defenderNext ? DefenderRoll : AttackerRoll;
-                _defenderNext = !_defenderNext;
-                return roll;
-            }
-        }
-
-        private class CoreRules : IGameRules
-        {
-            private readonly ICombatService _combat;
-            private readonly IDiceRoller _dice;
-            private readonly CrisisDirector _director;
-            private readonly Dictionary<FactionType, IFactionRuleset> _rulesets;
-
-            public CoreRules(IDiceRoller dice)
-            {
-                _rulesets = new Dictionary<FactionType, IFactionRuleset>
-                {
-                    { FactionType.Militants, new MilitantRuleset() },
-                    { FactionType.Zealots, new ZealotRuleset() },
-                    { FactionType.Guerrillas, new GuerrillaRuleset() },
-                    { FactionType.Guilds, new GuildRuleset() }
-                };
-                _dice = dice;
-                _combat = new RootCombatService(dice);
-                _director = new CrisisDirector(_rulesets);
-            }
-
-            public CombatResult ResolveSkirmish(
-                IReadOnlyList<UnitInstance> attackers,
-                IReadOnlyList<UnitInstance> defenders,
-                FactionType defenderFaction,
-                bool hasFortification) =>
-                _combat.ResolveBattle(new CombatContext(attackers, defenders, hasFortification,
-                    _rulesets[defenderFaction].ReceivesFortificationBonus));
-
-            public PlayerProfile EvaluatePlayerTurnState(PlayerProfile player, int controlledProvinces)
-            {
-                if (_director.CheckVictory(player)) return player;
-
-                return _director.CanTriggerCrisis(player, controlledProvinces)
-                    ? _director.ExecuteForcedCrisis(player).UpdatedProfile
-                    : player;
-            }
-
-            public int CalculateRevenue(FactionType faction, int controlledProvinces) =>
-                _rulesets[faction].CalculateUpkeepRevenue(controlledProvinces);
-
-            public int RollContest()
-            {
-                var (roll1, roll2, roll3) = _dice.Roll3D4();
-                return roll1 + roll2 + roll3;
-            }
-        }
-
         private ScriptedDiceRoller _dice;
 
         [SetUp]
@@ -498,7 +434,7 @@ namespace Tests.Editor
             session.BuyUnit(AttackerHome);
 
             interaction.ClickProvince(AttackerHome);
-            interaction.DecreaseUnitsToMove();
+            interaction.DecreaseUnitsToMove(UnitType.RegularMilitary);
             interaction.BeginMove();
             interaction.ClickProvince(NeutralLand);
 
@@ -508,19 +444,34 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void Interaction_UnitsToMove_StaysBetweenOneAndMovableCount()
+        public void Interaction_UnitsToMove_StaysBetweenZeroAndMovableCount()
         {
             var session = CreateSession();
             var interaction = new HudInteraction(session);
             session.BuyUnit(AttackerHome);
             interaction.ClickProvince(AttackerHome);
 
-            interaction.IncreaseUnitsToMove();
+            interaction.IncreaseUnitsToMove(UnitType.RegularMilitary);
             Assert.AreEqual(2, interaction.UnitsToMove);
 
-            interaction.DecreaseUnitsToMove();
-            interaction.DecreaseUnitsToMove();
-            Assert.AreEqual(1, interaction.UnitsToMove);
+            interaction.DecreaseUnitsToMove(UnitType.RegularMilitary);
+            interaction.DecreaseUnitsToMove(UnitType.RegularMilitary);
+            interaction.DecreaseUnitsToMove(UnitType.RegularMilitary);
+            Assert.AreEqual(0, interaction.UnitsToMove);
+        }
+
+        [Test]
+        public void Interaction_BeginMoveWithNothingSelected_ReportsEmptySelection()
+        {
+            var session = CreateSession();
+            var interaction = new HudInteraction(session);
+            interaction.ClickProvince(AttackerHome);
+            interaction.DecreaseUnitsToMove(UnitType.RegularMilitary);
+
+            interaction.BeginMove();
+
+            Assert.IsFalse(interaction.IsTargetingMove);
+            Assert.AreEqual(CommandResult.NoUnitsSelected, interaction.LastResult);
         }
 
         [Test]
@@ -530,7 +481,7 @@ namespace Tests.Editor
             var interaction = new HudInteraction(session);
             session.BuyUnit(AttackerHome);
             interaction.ClickProvince(AttackerHome);
-            interaction.DecreaseUnitsToMove();
+            interaction.DecreaseUnitsToMove(UnitType.RegularMilitary);
 
             interaction.ClickProvince(DefenderHome);
             interaction.ClickProvince(AttackerHome);

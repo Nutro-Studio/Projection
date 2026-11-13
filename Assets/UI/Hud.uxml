@@ -8,6 +8,8 @@
             <ui:Label name="gold-label" class="top-text" />
             <ui:VisualElement class="icon icon--vp" />
             <ui:Label name="vp-label" class="top-text" />
+            <ui:VisualElement class="icon icon--ap" />
+            <ui:Label name="ap-label" class="top-text" />
             <ui:VisualElement class="icon icon--turn top-end" />
             <ui:Label name="turn-label" class="top-text top-text--last" />
         </ui:VisualElement>
@@ -18,25 +20,38 @@
             <ui:VisualElement name="province-panel" class="card card--light province-panel">
                 <ui:Label name="province-name" class="card-title" />
                 <ui:Label name="province-owner" class="card-text" />
-                <ui:VisualElement class="info-row">
+                <ui:VisualElement class="info-row info-row--top">
                     <ui:VisualElement class="icon icon--small icon--pawn icon--dark" />
                     <ui:Label name="province-units" class="card-text" />
                 </ui:VisualElement>
-                <ui:VisualElement class="info-row">
+                <ui:VisualElement class="info-row info-row--top">
                     <ui:VisualElement class="icon icon--small icon--fort icon--dark" />
-                    <ui:Label name="province-fort" class="card-text" />
+                    <ui:Label name="province-structures" class="card-text" />
                 </ui:VisualElement>
-                <ui:Button name="buy-button" class="action-button" focusable="false" />
-                <ui:VisualElement name="split-row" class="info-row split-row">
-                    <ui:Label text="Units to move" class="card-text split-label" />
-                    <ui:Button name="move-fewer-button" text="-" class="step-button" focusable="false" />
-                    <ui:Label name="move-count-label" class="card-text split-count" />
-                    <ui:Button name="move-more-button" text="+" class="step-button" focusable="false" />
+                <ui:VisualElement name="split-row-0" class="info-row split-row">
+                    <ui:Label name="split-label-0" class="card-text split-label" />
+                    <ui:Button name="move-fewer-button-0" text="-" class="step-button" focusable="false" />
+                    <ui:Label name="move-count-label-0" class="card-text split-count" />
+                    <ui:Button name="move-more-button-0" text="+" class="step-button" focusable="false" />
+                </ui:VisualElement>
+                <ui:VisualElement name="split-row-1" class="info-row split-row">
+                    <ui:Label name="split-label-1" class="card-text split-label" />
+                    <ui:Button name="move-fewer-button-1" text="-" class="step-button" focusable="false" />
+                    <ui:Label name="move-count-label-1" class="card-text split-count" />
+                    <ui:Button name="move-more-button-1" text="+" class="step-button" focusable="false" />
+                </ui:VisualElement>
+                <ui:VisualElement name="split-row-2" class="info-row split-row">
+                    <ui:Label name="split-label-2" class="card-text split-label" />
+                    <ui:Button name="move-fewer-button-2" text="-" class="step-button" focusable="false" />
+                    <ui:Label name="move-count-label-2" class="card-text split-count" />
+                    <ui:Button name="move-more-button-2" text="+" class="step-button" focusable="false" />
                 </ui:VisualElement>
                 <ui:Button name="move-button" text="Move army" class="action-button" focusable="false" />
+                <ui:VisualElement name="action-list" class="action-list" />
             </ui:VisualElement>
             <ui:VisualElement class="spacer" picking-mode="Ignore" />
             <ui:VisualElement class="end-turn-group" picking-mode="Ignore">
+                <ui:VisualElement name="shift-list" class="shift-list" picking-mode="Ignore" />
                 <ui:Label name="status-label" class="status" picking-mode="Ignore" />
                 <ui:Button name="end-turn-button" text="End turn (Space)" class="action-button action-button--primary" focusable="false" />
             </ui:VisualElement>

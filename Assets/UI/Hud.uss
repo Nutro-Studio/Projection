@@ -57,6 +57,11 @@
     background-image: url("../Art/Kenney/Icons/pawn.png");
 }
 
+.icon--ap {
+    background-image: url("../Art/Kenney/Icons/hand.png");
+    -unity-background-image-tint-color: var(--cream);
+}
+
 .icon--fort {
     background-image: url("../Art/Kenney/Icons/structure_tower.png");
 }
@@ -165,7 +170,36 @@
 }
 
 .province-panel {
-    width: 280px;
+    width: 300px;
+}
+
+.info-row--top {
+    align-items: flex-start;
+}
+
+.action-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+
+.action-list .action-button {
+    width: 49%;
+    padding: 0 4px 4px 4px;
+    font-size: 13px;
+}
+
+.shift-list {
+    align-items: stretch;
+}
+
+.shift-button {
+    margin-bottom: 6px;
+}
+
+.shift-button--pending {
+    -unity-background-image-tint-color: rgb(255, 205, 150);
+    -unity-font-style: bold;
 }
 
 .action-button {

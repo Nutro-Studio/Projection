@@ -26,6 +26,17 @@ namespace Tests.Editor
             public int CalculateRevenue(FactionType faction, int controlledProvinces) => 0;
 
             public int RollContest() => throw new System.NotSupportedException();
+
+            public bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction,
+                int controlledProvinces) => false;
+
+            public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
+                throw new System.NotSupportedException();
+
+            public bool CanTriggerAscension(PlayerProfile player, int controlledProvinces) => false;
+
+            public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
+                throw new System.NotSupportedException();
         }
 
         private static ProvinceSeed[] PrototypeMap() => new[]
