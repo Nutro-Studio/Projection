@@ -91,5 +91,17 @@ namespace Core.Combat
         }
 
         public IFactionRuleset GetRuleset(FactionType faction) => _rulesets[faction];
+
+        public bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction, int controlledProvinces) =>
+            _crisisDirector.CanTriggerVoluntaryShift(player, targetFaction, controlledProvinces);
+
+        public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
+            _crisisDirector.ExecuteVoluntaryShift(player, targetFaction);
+
+        public bool CanTriggerAscension(PlayerProfile player, int controlledProvinces) =>
+            _crisisDirector.CanTriggerAscension(player, controlledProvinces);
+
+        public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
+            _crisisDirector.ExecuteAscension(player, targetLandedFaction);
     }
 }

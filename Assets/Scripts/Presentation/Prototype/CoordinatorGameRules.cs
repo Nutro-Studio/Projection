@@ -24,6 +24,18 @@ namespace Presentation.Prototype
         public int CalculateRevenue(FactionType faction, int controlledProvinces) =>
             _coordinator.GetRuleset(faction).CalculateUpkeepRevenue(controlledProvinces);
 
+        public bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction, int controlledProvinces) =>
+            _coordinator.CanTriggerVoluntaryShift(player, targetFaction, controlledProvinces);
+
+        public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
+            _coordinator.ExecuteVoluntaryShift(player, targetFaction);
+
+        public bool CanTriggerAscension(PlayerProfile player, int controlledProvinces) =>
+            _coordinator.CanTriggerAscension(player, controlledProvinces);
+
+        public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
+            _coordinator.ExecuteAscension(player, targetLandedFaction);
+
         public int RollContest()
         {
             var (roll1, roll2, roll3) = _contestDice.Roll3D4();

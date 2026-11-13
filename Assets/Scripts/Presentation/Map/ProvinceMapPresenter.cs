@@ -6,7 +6,8 @@ namespace Presentation.Map
 {
     /// <summary>
     /// Keeps the world-space province views in sync: ownership and garrison come from
-    /// <see cref="PrototypeGameSession.OnProvinceStateChanged"/>, selection from <see cref="HudInteraction.Changed"/>.
+    /// <see cref="PrototypeGameSession.OnProvinceStateChanged"/>, selection and targeting from
+    /// <see cref="HudInteraction.Changed"/>.
     /// </summary>
     public sealed class ProvinceMapPresenter : IDisposable
     {
@@ -48,7 +49,7 @@ namespace Presentation.Map
         {
             for (int i = 0; i < _views.Length; i++)
             {
-                _views[i].ShowHighlight(_interaction.SelectedProvinceId == i, _interaction.IsValidMoveTarget(i));
+                _views[i].ShowHighlight(_interaction.SelectedProvinceId == i, _interaction.IsValidTarget(i));
             }
         }
     }

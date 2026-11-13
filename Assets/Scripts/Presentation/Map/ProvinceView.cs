@@ -11,6 +11,9 @@ namespace Presentation.Map
         private const float TargetScale = 1.06f;
         private const float TargetLighten = 0.35f;
 
+        private static readonly Color UndercoverCellTint = new(1f, 1f, 1f, 0.55f);
+        private static readonly Color OpenRebellionTint = new(1f, 0.55f, 0.25f);
+
         [SerializeField] private int _provinceId;
         [SerializeField] private string _displayName;
         [SerializeField] private int _startingOwnerId;
@@ -25,6 +28,11 @@ namespace Presentation.Map
         [SerializeField] private SpriteRenderer _ownerBanner;
         [SerializeField] private TextMeshPro _unitCount;
         [SerializeField] private SpriteRenderer _fortBadge;
+        [SerializeField] private SpriteRenderer _churchBadge;
+        [SerializeField] private SpriteRenderer _presenceBadge;
+        [SerializeField] private SpriteRenderer _cellBadge;
+        [SerializeField] private Sprite _undercoverCellSprite;
+        [SerializeField] private Sprite _openRebellionSprite;
 
         private SpriteRenderer _renderer;
         private Vector3 _baseScale;
@@ -49,6 +57,9 @@ namespace Presentation.Map
             _nameLabel.text = province.Name;
             _unitCount.text = province.Units.Count.ToString();
             _fortBadge.enabled = province.HasFort;
+            _churchBadge.enabled = province.HasChurch;
+            _presenceBadge.enabled = province.PresenceToken != null;
+            ShowRebellionCell(province.RebellionCell);
             _ownerBanner.enabled = hasOwner;
             _ownerBanner.color = ownerColor;
             ApplyColor();
@@ -61,6 +72,15 @@ namespace Presentation.Map
             transform.localScale = _baseScale * scale;
             _outline.enabled = isSelected || isMoveTarget;
             ApplyColor();
+        }
+
+        private void ShowRebellionCell(RebellionCell cell)
+        {
+            _cellBadge.enabled = cell != null;
+            if (cell == null) return;
+
+            _cellBadge.sprite = cell.IsOpenRebellion ? _openRebellionSprite : _undercoverCellSprite;
+            _cellBadge.color = cell.IsOpenRebellion ? OpenRebellionTint : UndercoverCellTint;
         }
 
         private void ApplyColor()
