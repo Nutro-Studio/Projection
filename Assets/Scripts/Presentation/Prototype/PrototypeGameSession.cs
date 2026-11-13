@@ -126,16 +126,41 @@ namespace Presentation.Prototype
             return CommandResult.Ok;
         }
 
-        public CommandResult MoveArmy(int fromId, int toId)
+        public List<int> GetMovableUnitIds(int provinceId)
         {
+            var units = _provinces[provinceId].Units;
+            var ids = new List<int>(units.Count);
+            for (int i = 0; i < units.Count; i++)
+            {
+                if (!_movedUnitIds.Contains(units[i].Id))
+                {
+                    ids.Add(units[i].Id);
+                }
+            }
+
+            return ids;
+        }
+
+        public CommandResult MoveArmy(MoveArmyCommand command)
+        {
+            if (command == null) throw new ArgumentNullException(nameof(command));
+
+            int fromId = command.OriginProvinceId;
+            int toId = command.TargetProvinceId;
             var originCheck = ValidateMoveOrigin(fromId);
             if (originCheck != CommandResult.Ok) return originCheck;
+            if (command.SelectedUnitIds == null || command.SelectedUnitIds.Count == 0)
+            {
+                return CommandResult.NoUnitsSelected;
+            }
 
             var from = _provinces[fromId];
             var to = _provinces[toId];
             if (fromId == toId || !from.IsAdjacentTo(toId)) return CommandResult.NotAdjacent;
 
-            SplitMovableUnits(from, out var movers, out var stayers);
+            var selection = SplitSelectedUnits(from, command.SelectedUnitIds, out var movers, out var stayers);
+            if (selection != CommandResult.Ok) return selection;
+
             int playerId = CurrentPlayer.PlayerId;
             bool isFriendly = to.OwnerId == playerId;
 
@@ -234,23 +259,47 @@ namespace Presentation.Prototype
             }
         }
 
-        private void SplitMovableUnits(ProvinceState province, out List<CombatUnit> movers, out List<CombatUnit> stayers)
+        /// <summary>
+        /// Selected units move, every other unit stays in the origin garrison. Fails without side effects when a
+        /// selected unit has already moved, is not in the province, or is listed twice.
+        /// </summary>
+        private CommandResult SplitSelectedUnits(
+            ProvinceState province,
+            IReadOnlyList<int> selectedUnitIds,
+            out List<CombatUnit> movers,
+            out List<CombatUnit> stayers)
         {
             int count = province.Units.Count;
-            movers = new List<CombatUnit>(count);
+            movers = new List<CombatUnit>(selectedUnitIds.Count);
             stayers = new List<CombatUnit>(count);
             for (int i = 0; i < count; i++)
             {
                 var unit = province.Units[i];
-                if (_movedUnitIds.Contains(unit.Id))
+                if (!Contains(selectedUnitIds, unit.Id))
                 {
                     stayers.Add(unit);
+                    continue;
                 }
-                else
+
+                if (_movedUnitIds.Contains(unit.Id)) return CommandResult.UnitsAlreadyMoved;
+
+                movers.Add(unit);
+            }
+
+            return movers.Count == selectedUnitIds.Count ? CommandResult.Ok : CommandResult.InvalidUnitSelection;
+        }
+
+        private static bool Contains(IReadOnlyList<int> ids, int id)
+        {
+            for (int i = 0; i < ids.Count; i++)
+            {
+                if (ids[i] == id)
                 {
-                    movers.Add(unit);
+                    return true;
                 }
             }
+
+            return false;
         }
 
         private void MarkMoved(IReadOnlyList<CombatUnit> units)

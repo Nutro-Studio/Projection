@@ -12,7 +12,23 @@ namespace Presentation.Prototype
         NoUnits,
         NotEnoughGold,
         NotAdjacent,
-        UnitsAlreadyMoved
+        UnitsAlreadyMoved,
+        NoUnitsSelected,
+        InvalidUnitSelection
+    }
+
+    public sealed class MoveArmyCommand
+    {
+        public int OriginProvinceId { get; }
+        public int TargetProvinceId { get; }
+        public IReadOnlyList<int> SelectedUnitIds { get; }
+
+        public MoveArmyCommand(int originProvinceId, int targetProvinceId, IReadOnlyList<int> selectedUnitIds)
+        {
+            OriginProvinceId = originProvinceId;
+            TargetProvinceId = targetProvinceId;
+            SelectedUnitIds = selectedUnitIds;
+        }
     }
 
     /// <summary>

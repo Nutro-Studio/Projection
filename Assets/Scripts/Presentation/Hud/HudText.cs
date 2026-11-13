@@ -41,6 +41,8 @@ namespace Presentation.Hud
             CommandResult.NotEnoughGold => $"Not enough gold: a unit costs {PrototypeGameSession.UnitCost}G.",
             CommandResult.NotAdjacent => "You can only move to an adjacent province.",
             CommandResult.UnitsAlreadyMoved => "These units have already moved this turn.",
+            CommandResult.NoUnitsSelected => "Select at least one unit to move.",
+            CommandResult.InvalidUnitSelection => "The selected units are not all in this province.",
             _ => result.ToString()
         };
 
