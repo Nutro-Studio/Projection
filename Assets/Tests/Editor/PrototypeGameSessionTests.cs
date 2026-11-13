@@ -476,6 +476,69 @@ namespace Tests.Editor
         }
 
         [Test]
+        public void Interaction_UnitsToMove_DefaultsToAllMovableUnits()
+        {
+            var session = CreateSession();
+            var interaction = new HudInteraction(session);
+            session.BuyUnit(AttackerHome);
+            session.BuyUnit(AttackerHome);
+
+            interaction.ClickProvince(AttackerHome);
+
+            Assert.AreEqual(3, interaction.MovableUnitCount);
+            Assert.AreEqual(3, interaction.UnitsToMove);
+        }
+
+        [Test]
+        public void Interaction_MovingFewerUnits_SplitsArmyAndLeavesGarrison()
+        {
+            var session = CreateSession();
+            var interaction = new HudInteraction(session);
+            session.BuyUnit(AttackerHome);
+            session.BuyUnit(AttackerHome);
+
+            interaction.ClickProvince(AttackerHome);
+            interaction.DecreaseUnitsToMove();
+            interaction.BeginMove();
+            interaction.ClickProvince(NeutralLand);
+
+            Assert.AreEqual(CommandResult.Ok, interaction.LastResult);
+            Assert.AreEqual(1, session.Provinces[AttackerHome].Units.Count);
+            Assert.AreEqual(2, session.Provinces[NeutralLand].Units.Count);
+        }
+
+        [Test]
+        public void Interaction_UnitsToMove_StaysBetweenOneAndMovableCount()
+        {
+            var session = CreateSession();
+            var interaction = new HudInteraction(session);
+            session.BuyUnit(AttackerHome);
+            interaction.ClickProvince(AttackerHome);
+
+            interaction.IncreaseUnitsToMove();
+            Assert.AreEqual(2, interaction.UnitsToMove);
+
+            interaction.DecreaseUnitsToMove();
+            interaction.DecreaseUnitsToMove();
+            Assert.AreEqual(1, interaction.UnitsToMove);
+        }
+
+        [Test]
+        public void Interaction_SelectingAnotherProvince_ResetsUnitsToMove()
+        {
+            var session = CreateSession();
+            var interaction = new HudInteraction(session);
+            session.BuyUnit(AttackerHome);
+            interaction.ClickProvince(AttackerHome);
+            interaction.DecreaseUnitsToMove();
+
+            interaction.ClickProvince(DefenderHome);
+            interaction.ClickProvince(AttackerHome);
+
+            Assert.AreEqual(2, interaction.UnitsToMove);
+        }
+
+        [Test]
         public void Interaction_BeginMoveOnForeignProvince_ReportsFailureWithoutTargeting()
         {
             var interaction = new HudInteraction(CreateSession());

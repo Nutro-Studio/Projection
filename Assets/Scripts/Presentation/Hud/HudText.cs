@@ -30,6 +30,11 @@ namespace Presentation.Hud
 
         public static string Fort(bool hasFort) => hasFort ? "Fort: yes" : "Fort: no";
 
+        public static string MoveButton(int unitsToMove) =>
+            unitsToMove > 0 ? $"Move {unitsToMove} unit(s)" : "Move army";
+
+        public static string UnitsToMove(int unitsToMove, int movable) => $"{unitsToMove}/{movable}";
+
         public static string BuyButton() => $"Buy unit ({PrototypeGameSession.UnitCost}G)";
 
         public static string Command(CommandResult result) => result switch

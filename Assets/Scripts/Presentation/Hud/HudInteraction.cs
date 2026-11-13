@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Presentation.Prototype;
 
 namespace Presentation.Hud
@@ -11,12 +12,21 @@ namespace Presentation.Hud
         public const int NoSelection = -1;
 
         private readonly PrototypeGameSession _session;
+        private int _unitsToMove = int.MaxValue;
 
         public event Action Changed;
 
         public int SelectedProvinceId { get; private set; } = NoSelection;
         public bool IsTargetingMove { get; private set; }
         public CommandResult LastResult { get; private set; } = CommandResult.Ok;
+
+        public int MovableUnitCount =>
+            SelectedProvinceId == NoSelection ? 0 : _session.CountMovableUnits(SelectedProvinceId);
+
+        /// <summary>
+        /// How many of the selected province's movable units the next move takes. Defaults to all of them.
+        /// </summary>
+        public int UnitsToMove => Math.Clamp(_unitsToMove, Math.Min(1, MovableUnitCount), MovableUnitCount);
 
         public HudInteraction(PrototypeGameSession session)
         {
@@ -29,7 +39,7 @@ namespace Presentation.Hud
 
             if (!IsTargetingMove)
             {
-                SelectedProvinceId = provinceId;
+                Select(provinceId);
                 Changed?.Invoke();
                 return;
             }
@@ -42,11 +52,10 @@ namespace Presentation.Hud
                 return;
             }
 
-            LastResult = _session.MoveArmy(
-                new MoveArmyCommand(origin, provinceId, _session.GetMovableUnitIds(origin)));
+            LastResult = _session.MoveArmy(new MoveArmyCommand(origin, provinceId, TakeUnitsToMove(origin)));
             if (LastResult == CommandResult.Ok)
             {
-                SelectedProvinceId = provinceId;
+                Select(provinceId);
             }
 
             Changed?.Invoke();
@@ -56,7 +65,7 @@ namespace Presentation.Hud
         {
             LastResult = CommandResult.Ok;
             IsTargetingMove = false;
-            SelectedProvinceId = NoSelection;
+            Select(NoSelection);
             Changed?.Invoke();
         }
 
@@ -76,6 +85,18 @@ namespace Presentation.Hud
             Changed?.Invoke();
         }
 
+        public void IncreaseUnitsToMove()
+        {
+            _unitsToMove = Math.Min(MovableUnitCount, UnitsToMove + 1);
+            Changed?.Invoke();
+        }
+
+        public void DecreaseUnitsToMove()
+        {
+            _unitsToMove = Math.Max(1, UnitsToMove - 1);
+            Changed?.Invoke();
+        }
+
         public void BeginMove()
         {
             if (SelectedProvinceId == NoSelection) return;
@@ -89,7 +110,7 @@ namespace Presentation.Hud
         {
             LastResult = _session.EndTurn();
             IsTargetingMove = false;
-            SelectedProvinceId = NoSelection;
+            Select(NoSelection);
             Changed?.Invoke();
         }
 
@@ -97,5 +118,23 @@ namespace Presentation.Hud
             IsTargetingMove
             && provinceId != SelectedProvinceId
             && _session.Provinces[SelectedProvinceId].IsAdjacentTo(provinceId);
+
+        private void Select(int provinceId)
+        {
+            SelectedProvinceId = provinceId;
+            _unitsToMove = int.MaxValue;
+        }
+
+        private List<int> TakeUnitsToMove(int provinceId)
+        {
+            int count = UnitsToMove;
+            var movable = _session.GetMovableUnitIds(provinceId);
+            if (movable.Count > count)
+            {
+                movable.RemoveRange(count, movable.Count - count);
+            }
+
+            return movable;
+        }
     }
 }
