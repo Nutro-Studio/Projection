@@ -163,6 +163,49 @@ namespace Tests.Editor
         }
 
         [Test]
+        public void OnProvinceStateChanged_ReportsNewGarrison_WhenUnitIsBought()
+        {
+            var session = CreateSession();
+            var changed = new List<ProvinceState>();
+            session.OnProvinceStateChanged += changed.Add;
+
+            session.BuyUnit(AttackerHome);
+
+            Assert.AreEqual(1, changed.Count);
+            Assert.AreEqual(AttackerHome, changed[0].Id);
+            Assert.AreEqual(2, changed[0].Units.Count);
+        }
+
+        [Test]
+        public void OnProvinceStateChanged_ReportsOriginAndTarget_WhenArmyMoves()
+        {
+            var session = CreateSession();
+            var changed = new List<ProvinceState>();
+            session.OnProvinceStateChanged += changed.Add;
+
+            session.MoveArmy(AttackerHome, NeutralLand);
+
+            Assert.AreEqual(2, changed.Count);
+            Assert.AreEqual(AttackerHome, changed[0].Id);
+            Assert.AreEqual(0, changed[0].Units.Count);
+            Assert.AreEqual(NeutralLand, changed[1].Id);
+            Assert.AreEqual(Attacker, changed[1].OwnerId);
+        }
+
+        [Test]
+        public void OnProvinceStateChanged_IsNotRaised_WhenCommandIsRejected()
+        {
+            var session = CreateSession();
+            int changes = 0;
+            session.OnProvinceStateChanged += _ => changes++;
+
+            session.BuyUnit(DefenderHome);
+            session.MoveArmy(DefenderHome, NeutralLand);
+
+            Assert.AreEqual(0, changes);
+        }
+
+        [Test]
         public void MoveArmy_UnitsCannotMoveTwiceInOneTurn()
         {
             var session = CreateSession();

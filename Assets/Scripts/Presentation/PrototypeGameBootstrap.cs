@@ -23,6 +23,8 @@ namespace Presentation
         [SerializeField] private ProvinceView[] _provinceViews;
         [SerializeField] private bool _crisisEnabled;
 
+        private ProvinceMapPresenter _mapPresenter;
+
         private void Start()
         {
             var players = new[]
@@ -37,8 +39,14 @@ namespace Presentation
                 BuildProvinces(players), _crisisEnabled);
             var interaction = new HudInteraction(session);
 
-            _hud.Initialize(session, interaction, _coordinator, _provinceViews, _mapCamera);
+            _hud.Initialize(session, interaction, _coordinator);
+            _mapPresenter = new ProvinceMapPresenter(session, interaction, _provinceViews);
             _mapInput.Initialize(interaction, _hud, _mapCamera);
+        }
+
+        private void OnDestroy()
+        {
+            _mapPresenter?.Dispose();
         }
 
         private List<ProvinceState> BuildProvinces(PlayerProfile[] players)

@@ -1,8 +1,6 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="Hud.uss" />
     <ui:VisualElement name="hud-root" class="hud-root" picking-mode="Ignore">
-        <ui:VisualElement name="province-labels" class="layer" picking-mode="Ignore" />
-
         <ui:VisualElement name="top-bar" class="top-bar">
             <ui:VisualElement name="player-flag" class="icon icon--flag" />
             <ui:Label name="player-label" class="top-text top-text--strong" />

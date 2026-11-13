@@ -15,8 +15,6 @@ namespace Presentation.Hud
         private PrototypeGameSession _session;
         private HudInteraction _interaction;
         private CombatCoordinator _coordinator;
-        private ProvinceView[] _provinceViews;
-        private Camera _camera;
         private DiceRollView _diceRoll;
 
         private VisualElement _root;
@@ -37,22 +35,16 @@ namespace Presentation.Hud
         private Label _banner;
         private VisualElement _victoryOverlay;
         private Label _victoryLabel;
-        private VisualElement[] _provinceMarkers;
-        private Label[] _provinceUnitCounts;
         private float _bannerLeft;
 
         public void Initialize(
             PrototypeGameSession session,
             HudInteraction interaction,
-            CombatCoordinator coordinator,
-            ProvinceView[] provinceViews,
-            Camera mapCamera)
+            CombatCoordinator coordinator)
         {
             _session = session;
             _interaction = interaction;
             _coordinator = coordinator;
-            _provinceViews = provinceViews;
-            _camera = mapCamera;
 
             BindElements(GetComponent<UIDocument>().rootVisualElement);
 
@@ -116,50 +108,6 @@ namespace Presentation.Hud
 
             _banner.style.display = DisplayStyle.None;
             _victoryOverlay.style.display = DisplayStyle.None;
-
-            var labelLayer = root.Q<VisualElement>("province-labels");
-            _provinceMarkers = new VisualElement[_provinceViews.Length];
-            _provinceUnitCounts = new Label[_provinceViews.Length];
-            for (int i = 0; i < _provinceViews.Length; i++)
-            {
-                _provinceMarkers[i] = CreateProvinceMarker(_session.Provinces[i], out _provinceUnitCounts[i]);
-                labelLayer.Add(_provinceMarkers[i]);
-            }
-        }
-
-        private static VisualElement CreateProvinceMarker(ProvinceState province, out Label unitCount)
-        {
-            var marker = new VisualElement { pickingMode = PickingMode.Ignore };
-            marker.AddToClassList("province-marker");
-
-            var name = new Label(province.Name) { pickingMode = PickingMode.Ignore };
-            name.AddToClassList("province-marker__name");
-            marker.Add(name);
-
-            var row = new VisualElement { pickingMode = PickingMode.Ignore };
-            row.AddToClassList("province-marker__row");
-            marker.Add(row);
-
-            row.Add(CreateMarkerIcon("icon--pawn"));
-            unitCount = new Label { pickingMode = PickingMode.Ignore };
-            unitCount.AddToClassList("province-marker__count");
-            row.Add(unitCount);
-
-            if (province.HasFort)
-            {
-                row.Add(CreateMarkerIcon("icon--fort"));
-            }
-
-            return marker;
-        }
-
-        private static VisualElement CreateMarkerIcon(string iconClass)
-        {
-            var icon = new VisualElement { pickingMode = PickingMode.Ignore };
-            icon.AddToClassList("icon");
-            icon.AddToClassList("icon--small");
-            icon.AddToClassList(iconClass);
-            return icon;
         }
 
         private void Update()
@@ -176,22 +124,6 @@ namespace Presentation.Hud
                     _banner.style.display = DisplayStyle.None;
                 }
             }
-
-            PositionProvinceLabels();
-        }
-
-        private void PositionProvinceLabels()
-        {
-            var panel = _root.panel;
-            if (panel == null) return;
-
-            for (int i = 0; i < _provinceMarkers.Length; i++)
-            {
-                var position = RuntimePanelUtils.CameraTransformWorldToPanel(panel,
-                    _provinceViews[i].transform.position, _camera);
-                _provinceMarkers[i].style.left = position.x;
-                _provinceMarkers[i].style.top = position.y;
-            }
         }
 
         private void Refresh()
@@ -205,7 +137,6 @@ namespace Presentation.Hud
 
             RefreshProvincePanel();
             RefreshStatus();
-            RefreshMap();
         }
 
         private void RefreshProvincePanel()
@@ -233,19 +164,6 @@ namespace Presentation.Hud
                 ? failure
                 : HudText.Hint(_interaction.SelectedProvinceId != HudInteraction.NoSelection,
                     _interaction.IsTargetingMove);
-        }
-
-        private void RefreshMap()
-        {
-            for (int i = 0; i < _provinceViews.Length; i++)
-            {
-                var province = _session.Provinces[i];
-                var owner = _session.GetPlayer(province.OwnerId);
-                var color = owner == null ? FactionPalette.Neutral : FactionPalette.For(owner.Faction);
-                _provinceViews[i].Render(color, _interaction.SelectedProvinceId == i,
-                    _interaction.IsValidMoveTarget(i));
-                _provinceUnitCounts[i].text = province.Units.Count.ToString();
-            }
         }
 
         private void ShowRulesetShift(CrisisShiftResult shift)

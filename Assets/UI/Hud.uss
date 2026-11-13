@@ -226,43 +226,6 @@
     white-space: normal;
 }
 
-.province-marker {
-    position: absolute;
-    width: 160px;
-    margin-left: -80px;
-    margin-top: -24px;
-    align-items: center;
-}
-
-.province-marker__name {
-    padding: 0;
-    color: rgb(255, 255, 255);
-    font-size: 19px;
-    -unity-font-definition: url("../Art/Kenney/Fonts/KenneyFuture.ttf");
-    -unity-text-outline-width: 1px;
-    -unity-text-outline-color: rgb(30, 20, 12);
-}
-
-.province-marker__row {
-    flex-direction: row;
-    align-items: center;
-    margin-top: 4px;
-}
-
-.province-marker__row .icon {
-    -unity-background-image-tint-color: rgb(255, 255, 255);
-}
-
-.province-marker__count {
-    margin-right: 10px;
-    padding: 0;
-    color: rgb(255, 255, 255);
-    font-size: 20px;
-    -unity-font-style: bold;
-    -unity-text-outline-width: 1px;
-    -unity-text-outline-color: rgb(30, 20, 12);
-}
-
 .overlay {
     align-items: center;
     justify-content: center;
