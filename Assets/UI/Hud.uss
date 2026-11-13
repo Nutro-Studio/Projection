@@ -201,6 +201,52 @@
     opacity: 1;
 }
 
+.split-row {
+    margin-top: 8px;
+}
+
+.split-label {
+    flex-grow: 1;
+    margin-bottom: 0;
+}
+
+.split-count {
+    width: 48px;
+    margin-bottom: 0;
+    -unity-text-align: middle-center;
+    -unity-font-style: bold;
+}
+
+.step-button {
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0 0 3px 0;
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+    background-image: url("../Art/Kenney/UI/buttonLong_beige.png");
+    -unity-slice-left: 12;
+    -unity-slice-right: 12;
+    -unity-slice-top: 12;
+    -unity-slice-bottom: 14;
+    color: var(--ink);
+    font-size: 20px;
+    -unity-font-style: bold;
+}
+
+.step-button:hover {
+    background-color: rgba(0, 0, 0, 0);
+    -unity-background-image-tint-color: rgb(255, 250, 235);
+}
+
+.step-button:disabled {
+    background-color: rgba(0, 0, 0, 0);
+    background-image: url("../Art/Kenney/UI/buttonLong_grey.png");
+    -unity-background-image-tint-color: rgb(165, 160, 150);
+    color: rgb(62, 58, 52);
+    opacity: 1;
+}
+
 .action-button--primary {
     -unity-background-image-tint-color: rgb(255, 196, 84);
     -unity-font-style: bold;

@@ -30,6 +30,10 @@ namespace Presentation.Hud
         private Label _provinceFort;
         private Button _buyButton;
         private Button _moveButton;
+        private VisualElement _splitRow;
+        private Label _moveCountLabel;
+        private Button _moveFewerButton;
+        private Button _moveMoreButton;
         private Button _endTurnButton;
         private Label _statusLabel;
         private Label _banner;
@@ -94,6 +98,10 @@ namespace Presentation.Hud
             _provinceFort = root.Q<Label>("province-fort");
             _buyButton = root.Q<Button>("buy-button");
             _moveButton = root.Q<Button>("move-button");
+            _splitRow = root.Q<VisualElement>("split-row");
+            _moveCountLabel = root.Q<Label>("move-count-label");
+            _moveFewerButton = root.Q<Button>("move-fewer-button");
+            _moveMoreButton = root.Q<Button>("move-more-button");
             _endTurnButton = root.Q<Button>("end-turn-button");
             _statusLabel = root.Q<Label>("status-label");
             _banner = root.Q<Label>("ruleset-banner");
@@ -104,6 +112,8 @@ namespace Presentation.Hud
             _buyButton.text = HudText.BuyButton();
             _buyButton.clicked += _interaction.BuyUnit;
             _moveButton.clicked += _interaction.BeginMove;
+            _moveFewerButton.clicked += _interaction.DecreaseUnitsToMove;
+            _moveMoreButton.clicked += _interaction.IncreaseUnitsToMove;
             _endTurnButton.clicked += _interaction.EndTurn;
 
             _banner.style.display = DisplayStyle.None;
@@ -155,6 +165,14 @@ namespace Presentation.Hud
             bool isOwnProvince = province.OwnerId == _session.CurrentPlayer.PlayerId;
             _buyButton.SetEnabled(isOwnProvince && _session.CurrentPlayer.Gold >= PrototypeGameSession.UnitCost);
             _moveButton.SetEnabled(_session.ValidateMoveOrigin(selected) == CommandResult.Ok);
+
+            int movable = _interaction.MovableUnitCount;
+            int unitsToMove = _interaction.UnitsToMove;
+            _moveButton.text = HudText.MoveButton(unitsToMove);
+            _splitRow.style.display = movable > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            _moveCountLabel.text = HudText.UnitsToMove(unitsToMove, movable);
+            _moveFewerButton.SetEnabled(unitsToMove > 1);
+            _moveMoreButton.SetEnabled(unitsToMove < movable);
         }
 
         private void RefreshStatus()

@@ -27,6 +27,12 @@
                     <ui:Label name="province-fort" class="card-text" />
                 </ui:VisualElement>
                 <ui:Button name="buy-button" class="action-button" focusable="false" />
+                <ui:VisualElement name="split-row" class="info-row split-row">
+                    <ui:Label text="Units to move" class="card-text split-label" />
+                    <ui:Button name="move-fewer-button" text="-" class="step-button" focusable="false" />
+                    <ui:Label name="move-count-label" class="card-text split-count" />
+                    <ui:Button name="move-more-button" text="+" class="step-button" focusable="false" />
+                </ui:VisualElement>
                 <ui:Button name="move-button" text="Move army" class="action-button" focusable="false" />
             </ui:VisualElement>
             <ui:VisualElement class="spacer" picking-mode="Ignore" />
