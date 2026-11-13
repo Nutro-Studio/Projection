@@ -1691,6 +1691,9 @@ MonoBehaviour:
   _displayName: Province 2
   _startingOwnerId: -1
   _startingUnits: 0
+  _startingMissionaries: 0
+  _hasStartingChurch: 0
+  _startingRebellionCellOwnerId: -1
   _hasFort: 0
   _neighbours: 0000000002000000
   _outline: {fileID: 350329839}
@@ -1949,7 +1952,10 @@ MonoBehaviour:
   _provinceId: 0
   _displayName: Province 1
   _startingOwnerId: 1
-  _startingUnits: 1
+  _startingUnits: 2
+  _startingMissionaries: 0
+  _hasStartingChurch: 0
+  _startingRebellionCellOwnerId: 3
   _hasFort: 1
   _neighbours: 0100000002000000
   _outline: {fileID: 1552156853}
@@ -2934,7 +2940,10 @@ MonoBehaviour:
   _provinceId: 2
   _displayName: Province 3
   _startingOwnerId: 2
-  _startingUnits: 1
+  _startingUnits: 0
+  _startingMissionaries: 1
+  _hasStartingChurch: 1
+  _startingRebellionCellOwnerId: -1
   _hasFort: 0
   _neighbours: 0000000001000000
   _outline: {fileID: 492851368}
