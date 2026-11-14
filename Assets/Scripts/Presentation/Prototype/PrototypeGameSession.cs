@@ -926,5 +926,121 @@ namespace Presentation.Prototype
             int victoryPoints,
             IReadOnlyList<UnitInstance> units) =>
             new(profile.PlayerId, faction, gold, victoryPoints, units, profile.ActionPoints);
+
+        /// <summary>
+        /// Returns distinct enemy player IDs that currently have RegularMilitary units in <paramref name="provinceId"/>.
+        /// </summary>
+        public List<int> GetCoexistingEnemyIds(int provinceId)
+        {
+            var units = _provinces[provinceId].Units;
+            int currentPlayerId = CurrentPlayer.PlayerId;
+            var enemyIds = new List<int>();
+
+            for (int i = 0; i < units.Count; i++)
+            {
+                var unit = units[i];
+                if (unit.OwnerPlayerId != currentPlayerId
+                    && unit.Type == UnitType.RegularMilitary
+                    && !enemyIds.Contains(unit.OwnerPlayerId))
+                {
+                    enemyIds.Add(unit.OwnerPlayerId);
+                }
+            }
+
+            return enemyIds;
+        }
+
+        public bool CanVoluntaryShift(FactionType targetFaction)
+        {
+            if (IsGameOver || CurrentPlayer.ActionPoints <= 0) return false;
+            return _rules.CanTriggerVoluntaryShift(CurrentPlayer, targetFaction,
+                CountProvinces(CurrentPlayer.PlayerId));
+        }
+
+        public bool CanAscend()
+        {
+            if (IsGameOver || CurrentPlayer.ActionPoints <= 0) return false;
+            return _rules.CanTriggerAscension(CurrentPlayer, CountProvinces(CurrentPlayer.PlayerId));
+        }
+
+        public CommandResult VoluntaryShift(FactionType targetFaction)
+        {
+            if (IsGameOver) return CommandResult.GameOver;
+            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
+
+            var player = CurrentPlayer;
+            int controlled = CountProvinces(player.PlayerId);
+            if (!_rules.CanTriggerVoluntaryShift(player, targetFaction, controlled))
+            {
+                return CommandResult.InvalidRulesetShift;
+            }
+
+            var withUnits = player with { Units = CollectUnits(player.PlayerId) };
+            var shift = _rules.ExecuteVoluntaryShift(withUnits, targetFaction);
+            ApplyShiftResult(shift);
+            return CommandResult.Ok;
+        }
+
+        public CommandResult Ascend(FactionType targetLandedFaction)
+        {
+            if (IsGameOver) return CommandResult.GameOver;
+            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
+
+            var player = CurrentPlayer;
+            int controlled = CountProvinces(player.PlayerId);
+            if (!_rules.CanTriggerAscension(player, controlled))
+            {
+                return CommandResult.InvalidRulesetShift;
+            }
+
+            var withUnits = player with { Units = CollectUnits(player.PlayerId) };
+            var shift = _rules.ExecuteAscension(withUnits, targetLandedFaction);
+            ApplyShiftResult(shift);
+            return CommandResult.Ok;
+        }
+
+        private void ApplyShiftResult(CrisisShiftResult shift)
+        {
+            _players[_currentPlayerIndex] = shift.UpdatedProfile with
+            {
+                ActionPoints = CurrentPlayer.ActionPoints - 1
+            };
+
+            // If Militant voluntary shift pruned units, sync board garrisons to match RetainedUnits
+            if (shift.PreviousFaction == FactionType.Militants && shift.IsVoluntary)
+            {
+                var survivingIds = new HashSet<int>();
+                for (int i = 0; i < shift.UpdatedProfile.Units.Count; i++)
+                {
+                    survivingIds.Add(shift.UpdatedProfile.Units[i].Id);
+                }
+
+                for (int p = 0; p < _provinces.Length; p++)
+                {
+                    var province = _provinces[p];
+                    var kept = new List<UnitInstance>(province.Units.Count);
+                    for (int u = 0; u < province.Units.Count; u++)
+                    {
+                        var unit = province.Units[u];
+                        if (unit.OwnerPlayerId != shift.UpdatedProfile.PlayerId || survivingIds.Contains(unit.Id))
+                        {
+                            kept.Add(unit);
+                        }
+                    }
+
+                    if (kept.Count != province.Units.Count)
+                    {
+                        SetProvince(province.WithUnits(kept));
+                    }
+                }
+            }
+
+            if (_players[_currentPlayerIndex].VictoryPoints >= CrisisDirector.VictoryPointsThreshold)
+            {
+                IsGameOver = true;
+            }
+
+            StateChanged?.Invoke();
+        }
     }
 }

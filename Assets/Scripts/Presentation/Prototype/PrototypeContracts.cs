@@ -24,7 +24,8 @@ namespace Presentation.Prototype
         NoTargetUnits,
         NoRebellionCell,
         NothingToPurge,
-        InvalidBattleTarget
+        InvalidBattleTarget,
+        InvalidRulesetShift
     }
 
     /// <summary>
@@ -82,6 +83,11 @@ namespace Presentation.Prototype
 
         /// <summary>One side of a contested roll such as Divine Conversion: the sum of 3d4.</summary>
         int RollContest();
+
+        bool CanTriggerAscension(PlayerProfile player, int controlledProvinces);
+        bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction, int controlledProvinces);
+        CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction);
+        CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction);
     }
 
     public sealed class ProvinceState

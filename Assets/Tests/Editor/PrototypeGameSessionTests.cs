@@ -78,6 +78,19 @@ namespace Tests.Editor
                 var (roll1, roll2, roll3) = _dice.Roll3D4();
                 return roll1 + roll2 + roll3;
             }
+
+            public bool CanTriggerAscension(PlayerProfile player, int controlledProvinces) =>
+                _director.CanTriggerAscension(player, controlledProvinces);
+
+            public bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction,
+                int controlledProvinces) =>
+                _director.CanTriggerVoluntaryShift(player, targetFaction, controlledProvinces);
+
+            public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
+                _director.ExecuteAscension(player, targetLandedFaction);
+
+            public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
+                _director.ExecuteVoluntaryShift(player, targetFaction);
         }
 
         private ScriptedDiceRoller _dice;

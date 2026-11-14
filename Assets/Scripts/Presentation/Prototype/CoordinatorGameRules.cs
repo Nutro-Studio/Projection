@@ -11,6 +11,19 @@ namespace Presentation.Prototype
 
         public CoordinatorGameRules(CombatCoordinator coordinator) => _coordinator = coordinator;
 
+        public bool CanTriggerAscension(PlayerProfile player, int controlledProvinces) =>
+            _coordinator.CanTriggerAscension(player, controlledProvinces);
+
+        public bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction,
+            int controlledProvinces) =>
+            _coordinator.CanTriggerVoluntaryShift(player, targetFaction, controlledProvinces);
+
+        public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
+            _coordinator.ExecuteAscension(player, targetLandedFaction);
+
+        public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
+            _coordinator.ExecuteVoluntaryShift(player, targetFaction);
+
         public CombatResult ResolveSkirmish(
             IReadOnlyList<UnitInstance> attackers,
             IReadOnlyList<UnitInstance> defenders,
