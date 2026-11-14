@@ -753,24 +753,6 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void MoveArmy_MissionariesCannotConquer_InheritedMilitaryCan()
-        {
-            var session = CreateZealotSession();
-            session.BuyMissionary(AttackerHome);
-            int missionaryId = session.Provinces[AttackerHome].Units[1].Id;
-
-            Assert.AreEqual(CommandResult.MissionariesCannotConquer,
-                Move(session, AttackerHome, DefenderHome, missionaryId));
-            Assert.AreEqual(CommandResult.MissionariesCannotConquer,
-                Move(session, AttackerHome, DefenderHome, 1, missionaryId));
-            Assert.AreEqual(CommandResult.Ok, Move(session, AttackerHome, NeutralLand, 1));
-            Assert.AreEqual(CommandResult.Ok, Move(session, AttackerHome, NeutralLand, missionaryId));
-
-            Assert.AreEqual(Attacker, session.Provinces[NeutralLand].OwnerId);
-            Assert.AreEqual(2, session.Provinces[NeutralLand].Units.Count);
-        }
-
-        [Test]
         public void MoveArmy_MissionaryOnlyGarrison_CoexistsWithoutBattle()
         {
             var session = CreateSession();
@@ -818,39 +800,67 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void DivineConversion_WonContest_ConvertsUpToTwoUnitsPreservingOriginFactionAndExpendsMissionary()
+        public void MoveArmy_MissionariesCanEnterHostileAndNeutralProvincesFreely()
         {
-            var session = CreateZealotSession(defenderUnits: 3);
+            var session = CreateZealotSession();
             session.BuyMissionary(AttackerHome);
-            _dice.AttackerRoll = (3, 3, 3);
-            _dice.DefenderRoll = (1, 1, 1);
+            int missionaryId = session.Provinces[AttackerHome].Units[1].Id;
 
-            Assert.AreEqual(CommandResult.Ok, session.DivineConversion(AttackerHome, DefenderHome));
-
-            var home = session.Provinces[AttackerHome].Units;
-            Assert.AreEqual(3, home.Count, "Inherited unit plus two converts; the Missionary is spent.");
-            Assert.AreEqual(100, home[1].Id);
-            Assert.AreEqual(Attacker, home[1].OwnerPlayerId);
-            Assert.AreEqual(FactionType.Militants, home[1].OriginalFaction);
-            Assert.AreEqual(UnitType.RegularMilitary, home[1].Type);
-            Assert.IsTrue(home[1].HasActed);
-            Assert.AreEqual(1, session.Provinces[DefenderHome].Units.Count);
-            Assert.AreEqual(1, session.CountMovableUnits(AttackerHome), "Converts cannot move this turn.");
+            Assert.AreEqual(CommandResult.Ok, Move(session, AttackerHome, DefenderHome, missionaryId));
+            Assert.AreEqual(Defender, session.Provinces[DefenderHome].OwnerId);
+            Assert.AreEqual(2, session.Provinces[DefenderHome].Units.Count);
         }
 
         [Test]
-        public void DivineConversion_LostContest_StillExpendsMissionary()
+        public void DivineConversion_ConvertsInPlaceCappedAtMissionariesPlusOne_WithNoCasualties()
+        {
+            var session = CreateZealotSession(defenderUnits: 4);
+            session.BuyMissionary(AttackerHome);
+            session.BuyMissionary(AttackerHome);
+            var missionaryIds = new[]
+            {
+                session.Provinces[AttackerHome].Units[1].Id,
+                session.Provinces[AttackerHome].Units[2].Id
+            };
+            session.MoveArmy(new MoveArmyCommand(AttackerHome, DefenderHome, missionaryIds));
+            session.EndTurn();
+            session.EndTurn();
+
+            // Roll differential = 9 - 0 = 9, capped at (2 missionaries + 1) = 3 converts
+            _dice.AttackerRoll = (3, 3, 3);
+            _dice.DefenderRoll = (0, 0, 0);
+
+            Assert.AreEqual(CommandResult.Ok, session.DivineConversion(DefenderHome));
+
+            var zealotMilitary = session.GetUnitsForPlayer(DefenderHome, Attacker, UnitType.RegularMilitary);
+            var zealotMissionaries = session.GetUnitsForPlayer(DefenderHome, Attacker, UnitType.Missionary);
+            var defenderMilitary = session.GetUnitsForPlayer(DefenderHome, Defender, UnitType.RegularMilitary);
+
+            Assert.AreEqual(3, zealotMilitary.Count, "2 missionaries + 1 cap = 3 enemy soldiers converted.");
+            Assert.AreEqual(1, zealotMissionaries.Count, "1 missionary expended, 1 remains.");
+            Assert.AreEqual(1, defenderMilitary.Count, "1 defender remains; zero casualties inflicted.");
+            Assert.AreEqual(FactionType.Militants, zealotMilitary[0].OriginalFaction);
+            Assert.IsTrue(zealotMilitary[0].HasActed);
+        }
+
+        [Test]
+        public void DivineConversion_LostOrTiedContest_ExpendsMissionaryWithZeroConverts()
         {
             var session = CreateZealotSession(defenderUnits: 2);
             session.BuyMissionary(AttackerHome);
+            int missionaryId = session.Provinces[AttackerHome].Units[1].Id;
+            Move(session, AttackerHome, DefenderHome, missionaryId);
+            session.EndTurn();
+            session.EndTurn();
+
             _dice.AttackerRoll = (1, 1, 1);
             _dice.DefenderRoll = (1, 1, 1);
 
-            Assert.AreEqual(CommandResult.Ok, session.DivineConversion(AttackerHome, DefenderHome));
+            Assert.AreEqual(CommandResult.Ok, session.DivineConversion(DefenderHome));
 
-            Assert.AreEqual(1, session.Provinces[AttackerHome].Units.Count);
-            Assert.AreEqual(2, session.Provinces[DefenderHome].Units.Count);
-            Assert.AreEqual(CommandResult.NoMissionary, session.DivineConversion(AttackerHome, DefenderHome));
+            Assert.AreEqual(0, session.GetUnitsForPlayer(DefenderHome, Attacker).Count);
+            Assert.AreEqual(2, session.GetUnitsForPlayer(DefenderHome, Defender).Count);
+            Assert.AreEqual(CommandResult.NoMissionary, session.DivineConversion(DefenderHome));
         }
 
         [Test]

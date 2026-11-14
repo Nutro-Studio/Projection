@@ -180,7 +180,6 @@ namespace Presentation.Hud
             CommandResult.NoMissionary => "This needs a Missionary in the province.",
             CommandResult.AlreadyBuilt => "This province already has it.",
             CommandResult.NoMilitaryUnits => "This needs a military unit in the province.",
-            CommandResult.MissionariesCannotConquer => "Missionaries cannot enter land you do not hold.",
             CommandResult.NoTargetUnits => "There are no enemy units to target.",
             CommandResult.NoRebellionCell => "You have no undercover cell here.",
             CommandResult.NothingToPurge => "There is nothing here to purge.",
@@ -189,10 +188,9 @@ namespace Presentation.Hud
             _ => result.ToString()
         };
 
-        public static string Hint(bool hasSelection, bool isTargetingMove, bool isTargetingConversion = false)
+        public static string Hint(bool hasSelection, bool isTargetingMove)
         {
             if (isTargetingMove) return "Click a highlighted province to move. Esc cancels.";
-            if (isTargetingConversion) return "Click an adjacent province to convert. Esc cancels.";
 
             return hasSelection
                 ? "Choose an action or move units. Space ends the turn."

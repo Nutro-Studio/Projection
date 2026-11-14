@@ -20,7 +20,6 @@ namespace Presentation.Prototype
         NoMissionary,
         AlreadyBuilt,
         NoMilitaryUnits,
-        MissionariesCannotConquer,
         NoTargetUnits,
         NoRebellionCell,
         NothingToPurge,

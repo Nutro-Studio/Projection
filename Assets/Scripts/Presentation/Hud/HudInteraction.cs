@@ -8,8 +8,7 @@ namespace Presentation.Hud
     public enum TargetingMode
     {
         None,
-        Move,
-        DivineConversion
+        Move
     }
 
     /// <summary>
@@ -30,7 +29,6 @@ namespace Presentation.Hud
         public CommandResult LastResult { get; private set; } = CommandResult.Ok;
 
         public bool IsTargetingMove => Targeting == TargetingMode.Move;
-        public bool IsTargetingConversion => Targeting == TargetingMode.DivineConversion;
 
         public int MovableUnitCount =>
             SelectedProvinceId == NoSelection ? 0 : GetFilteredMovableUnitIds(SelectedProvinceId).Count;
@@ -57,7 +55,6 @@ namespace Presentation.Hud
             }
 
             int origin = SelectedProvinceId;
-            var activeMode = Targeting;
             Targeting = TargetingMode.None;
 
             if (provinceId == origin)
@@ -66,17 +63,10 @@ namespace Presentation.Hud
                 return;
             }
 
-            if (activeMode == TargetingMode.Move)
+            LastResult = _session.MoveArmy(new MoveArmyCommand(origin, provinceId, TakeUnitsToMove(origin)));
+            if (LastResult == CommandResult.Ok)
             {
-                LastResult = _session.MoveArmy(new MoveArmyCommand(origin, provinceId, TakeUnitsToMove(origin)));
-                if (LastResult == CommandResult.Ok)
-                {
-                    Select(provinceId);
-                }
-            }
-            else if (activeMode == TargetingMode.DivineConversion)
-            {
-                LastResult = _session.DivineConversion(origin, provinceId);
+                Select(provinceId);
             }
 
             Changed?.Invoke();
@@ -186,27 +176,12 @@ namespace Presentation.Hud
             Changed?.Invoke();
         }
 
-        public void BeginDivineConversion()
+        public void DivineConversion()
         {
             if (SelectedProvinceId == NoSelection) return;
 
-            if (_session.CurrentPlayer.Faction != FactionType.Zealots)
-            {
-                LastResult = CommandResult.WrongFaction;
-                Changed?.Invoke();
-                return;
-            }
-
-            if (_session.GetUnitsForPlayer(SelectedProvinceId, _session.CurrentPlayer.PlayerId, UnitType.Missionary)
-                    .Count == 0)
-            {
-                LastResult = CommandResult.NoMissionary;
-                Changed?.Invoke();
-                return;
-            }
-
-            LastResult = CommandResult.Ok;
-            Targeting = TargetingMode.DivineConversion;
+            Targeting = TargetingMode.None;
+            LastResult = _session.DivineConversion(SelectedProvinceId);
             Changed?.Invoke();
         }
 

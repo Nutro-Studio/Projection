@@ -206,16 +206,15 @@ namespace Presentation.Prototype
         }
 
         /// <summary>
-        /// A Missionary spends the action to place a Religious Presence token in its province.
+        /// A Missionary spends the action to place a Religious Presence token in the province it occupies.
         /// </summary>
         public CommandResult Consecrate(int provinceId)
         {
-            var check = ValidateOwnProvinceAction(provinceId);
+            var check = ValidateAction(FactionType.Zealots);
             if (check != CommandResult.Ok) return check;
 
             var province = _provinces[provinceId];
-            if (CurrentPlayer.Faction != FactionType.Zealots) return CommandResult.WrongFaction;
-            if (IndexOfType(GetUnitsForPlayer(provinceId, CurrentPlayer.PlayerId), UnitType.Missionary) < 0)
+            if (IndexOfPlayerUnitType(province.Units, CurrentPlayer.PlayerId, UnitType.Missionary) < 0)
             {
                 return CommandResult.NoMissionary;
             }
@@ -229,62 +228,62 @@ namespace Presentation.Prototype
         }
 
         /// <summary>
-        /// Expends a Missionary for a contested roll against an adjacent enemy garrison. On a win up to
-        /// <see cref="ConversionLimit"/> enemy units keep their stats and OriginalFaction, join the Zealots,
-        /// and move to the Missionary's province.
+        /// Expends 1 Missionary in <paramref name="provinceId"/> for a contested 3d4 roll against co-existing
+        /// enemy RegularMilitary units. On a win, converts up to (missionariesPresent + 1) enemy military units
+        /// capped by (zealotRoll - enemyRoll) with zero casualties.
         /// </summary>
-        public CommandResult DivineConversion(int missionaryProvinceId, int targetProvinceId)
+        public CommandResult DivineConversion(int provinceId)
         {
-            var check = ValidateOwnProvinceAction(missionaryProvinceId);
+            var check = ValidateAction(FactionType.Zealots);
             if (check != CommandResult.Ok) return check;
 
-            var origin = _provinces[missionaryProvinceId];
-            var target = _provinces[targetProvinceId];
+            var province = _provinces[provinceId];
             var player = CurrentPlayer;
-            if (player.Faction != FactionType.Zealots) return CommandResult.WrongFaction;
 
-            int missionaryIndex = IndexOfPlayerUnitType(origin.Units, player.PlayerId, UnitType.Missionary);
+            int missionaryIndex = IndexOfPlayerUnitType(province.Units, player.PlayerId, UnitType.Missionary);
             if (missionaryIndex < 0) return CommandResult.NoMissionary;
-            if (!origin.IsAdjacentTo(targetProvinceId)) return CommandResult.NotAdjacent;
 
-            var enemyUnits = new List<UnitInstance>();
-            var nonEnemyUnits = new List<UnitInstance>();
-            for (int i = 0; i < target.Units.Count; i++)
+            int missionariesPresent = GetUnitsForPlayer(provinceId, player.PlayerId, UnitType.Missionary).Count;
+            int enemyMilitaryCount = 0;
+            for (int i = 0; i < province.Units.Count; i++)
             {
-                if (target.Units[i].OwnerPlayerId != player.PlayerId)
-                    enemyUnits.Add(target.Units[i]);
-                else
-                    nonEnemyUnits.Add(target.Units[i]);
+                var unit = province.Units[i];
+                if (unit.OwnerPlayerId != player.PlayerId && unit.Type == UnitType.RegularMilitary)
+                {
+                    enemyMilitaryCount++;
+                }
             }
 
-            if (enemyUnits.Count == 0) return CommandResult.NoTargetUnits;
-
-            var garrison = new List<UnitInstance>(origin.Units);
-            garrison.RemoveAt(missionaryIndex);
+            if (enemyMilitaryCount == 0) return CommandResult.NoTargetUnits;
 
             int zealotRoll = _rules.RollContest();
-            int targetRoll = _rules.RollContest();
-            if (zealotRoll > targetRoll)
-            {
-                int converted = Math.Min(ConversionLimit, enemyUnits.Count);
-                for (int i = 0; i < enemyUnits.Count; i++)
-                {
-                    var unit = enemyUnits[i];
-                    if (i < converted)
-                    {
-                        var convert = unit with { OwnerPlayerId = player.PlayerId, HasActed = true };
-                        garrison.Add(convert);
-                    }
-                    else
-                    {
-                        nonEnemyUnits.Add(unit);
-                    }
-                }
+            int enemyRoll = _rules.RollContest();
+            int rollGain = Math.Max(0, zealotRoll - enemyRoll);
+            int maxGain = missionariesPresent + 1;
+            int toConvert = Math.Min(Math.Min(rollGain, maxGain), enemyMilitaryCount);
 
-                SetProvince(target.WithUnits(nonEnemyUnits));
+            var updatedUnits = new List<UnitInstance>(province.Units.Count - 1);
+            int convertedSoFar = 0;
+
+            for (int i = 0; i < province.Units.Count; i++)
+            {
+                if (i == missionaryIndex) continue; // Expend 1 Missionary
+
+                var unit = province.Units[i];
+                if (convertedSoFar < toConvert
+                    && unit.OwnerPlayerId != player.PlayerId
+                    && unit.Type == UnitType.RegularMilitary)
+                {
+                    updatedUnits.Add(unit with { OwnerPlayerId = player.PlayerId, HasActed = true });
+                    convertedSoFar++;
+                }
+                else
+                {
+                    updatedUnits.Add(unit);
+                }
             }
 
-            SetProvince(origin.WithUnits(garrison));
+            SetProvince(province.WithUnits(updatedUnits));
             SpendActionPoint();
             StateChanged?.Invoke();
             return CommandResult.Ok;
@@ -439,12 +438,6 @@ namespace Presentation.Prototype
             var selection =
                 SplitSelectedUnits(from, playerId, command.SelectedUnitIds, out var movers, out var stayers);
             if (selection != CommandResult.Ok) return selection;
-
-            bool hasHostilePresence = HasEnemyMilitary(to.Units, playerId);
-            if (to.OwnerId != playerId && hasHostilePresence && IndexOfType(movers, UnitType.Missionary) >= 0)
-            {
-                return CommandResult.MissionariesCannotConquer;
-            }
 
             SetProvince(from.WithUnits(stayers));
             SetProvince(to.WithUnits(Concat(to.Units, movers)));
@@ -670,19 +663,6 @@ namespace Presentation.Prototype
             for (int i = 0; i < ids.Count; i++)
             {
                 if (ids[i] == id)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private static bool HasEnemyMilitary(IReadOnlyList<UnitInstance> units, int friendlyPlayerId)
-        {
-            for (int i = 0; i < units.Count; i++)
-            {
-                if (units[i].OwnerPlayerId != friendlyPlayerId && units[i].Type == UnitType.RegularMilitary)
                 {
                     return true;
                 }

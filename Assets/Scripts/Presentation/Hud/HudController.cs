@@ -270,6 +270,7 @@ namespace Presentation.Hud
                 case FactionType.Zealots:
                     bool hasMissionary =
                         _session.GetUnitsForPlayer(selectedProvinceId, player.PlayerId, UnitType.Missionary).Count > 0;
+                    bool hasEnemyMilitary = _session.GetCoexistingEnemyIds(selectedProvinceId).Count > 0;
 
                     AddActionButton(
                         HudText.BuyMissionaryButton(),
@@ -283,13 +284,13 @@ namespace Presentation.Hud
 
                     AddActionButton(
                         HudText.ConsecrateButton(),
-                        hasAp && isOwnProvince && hasMissionary && province.PresenceToken == null,
+                        hasAp && hasMissionary && province.PresenceToken == null,
                         _interaction.Consecrate);
 
                     AddActionButton(
                         HudText.DivineConversionButton(),
-                        hasAp && isOwnProvince && hasMissionary,
-                        _interaction.BeginDivineConversion);
+                        hasAp && hasMissionary && hasEnemyMilitary,
+                        _interaction.DivineConversion);
 
                     AddCleanseButtonIfApplicable(province, player.PlayerId, hasAp && hasOwnMilitary);
                     break;
@@ -383,8 +384,7 @@ namespace Presentation.Hud
                 ? failure
                 : HudText.Hint(
                     _interaction.SelectedProvinceId != HudInteraction.NoSelection,
-                    _interaction.IsTargetingMove,
-                    _interaction.IsTargetingConversion);
+                    _interaction.IsTargetingMove);
         }
 
         private void ShowRulesetShift(CrisisShiftResult shift)
