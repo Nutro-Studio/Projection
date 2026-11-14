@@ -11,6 +11,11 @@ namespace Presentation.Map
         private const float TargetScale = 1.06f;
         private const float TargetLighten = 0.35f;
 
+        private static readonly Color ChurchTint = new(1f, 0.88f, 0.35f, 1f);
+        private static readonly Color PresenceTint = new(0.45f, 0.85f, 1f, 1f);
+        private static readonly Color UndercoverCellTint = new(0.25f, 0.75f, 0.35f, 0.55f);
+        private static readonly Color OpenRebellionTint = new(0.95f, 0.25f, 0.2f, 1f);
+
         [SerializeField] private int _provinceId;
         [SerializeField] private string _displayName;
         [SerializeField] private int _startingOwnerId;
@@ -25,6 +30,9 @@ namespace Presentation.Map
         [SerializeField] private SpriteRenderer _ownerBanner;
         [SerializeField] private TextMeshPro _unitCount;
         [SerializeField] private SpriteRenderer _fortBadge;
+        [SerializeField] private SpriteRenderer _churchBadge;
+        [SerializeField] private SpriteRenderer _presenceBadge;
+        [SerializeField] private SpriteRenderer _rebellionBadge;
 
         private SpriteRenderer _renderer;
         private Vector3 _baseScale;
@@ -51,6 +59,31 @@ namespace Presentation.Map
             _fortBadge.enabled = province.HasFort;
             _ownerBanner.enabled = hasOwner;
             _ownerBanner.color = ownerColor;
+
+            if (_churchBadge != null)
+            {
+                _churchBadge.enabled = province.HasChurch;
+                _churchBadge.color = ChurchTint;
+            }
+
+            if (_presenceBadge != null)
+            {
+                _presenceBadge.enabled = province.PresenceToken != null;
+                _presenceBadge.color = PresenceTint;
+            }
+
+            if (_rebellionBadge != null)
+            {
+                bool hasCell = province.RebellionCell != null;
+                _rebellionBadge.enabled = hasCell;
+                if (hasCell)
+                {
+                    _rebellionBadge.color = province.RebellionCell.IsOpenRebellion
+                        ? OpenRebellionTint
+                        : UndercoverCellTint;
+                }
+            }
+
             ApplyColor();
         }
 
