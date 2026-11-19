@@ -33,6 +33,7 @@ namespace Core.Crisis
     {
         public const int CaravanGoldPerProvince = 2;
         public const int CaravanTransitFee = 1;
+        public const int BuiltTradingPostsPerCaravanBonus = 2;
         public const int TradeRouteMinProvinces = 3;
         public const int TradeRouteVictoryPoints = 2;
         public const int TradingPostVictoryPoints = 1;
@@ -44,6 +45,12 @@ namespace Core.Crisis
         public bool IsLanded => false;
         public bool ReceivesFortificationBonus => false;
         public int CalculateUpkeepRevenue(int controlledProvinces) => 0;
+
+        /// <summary>
+        /// Gold a caravan earns per province: 2, plus 1 for every 2 Trading Posts built beyond the starting ones.
+        /// </summary>
+        public static int CaravanGoldPerProvinceFor(int builtTradingPosts) =>
+            CaravanGoldPerProvince + builtTradingPosts / BuiltTradingPostsPerCaravanBonus;
 
         /// <summary>+1 VP per Trading Post and +1 VP per 10 Gold banked. Trade routes score when they complete.</summary>
         public int CalculateUpkeepVictoryPoints(UpkeepState state) =>

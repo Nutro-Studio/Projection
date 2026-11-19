@@ -150,11 +150,12 @@ namespace Tests.Editor
         private const int PostB = 3;
         private const int Market = 4;
         private const int Stronghold = 5;
+        private const int Bazaar = 6;
 
         /// <summary>
-        /// A chain PostA - TollRoad - OpenRoad - PostB - Market - Stronghold. The Guild holds Trading Posts with a
-        /// Trader in PostA and PostB; the Militant Defender owns TollRoad (garrisoned), PostB (garrisoned), the
-        /// empty Market and the fortified Stronghold; OpenRoad is neutral.
+        /// A chain PostA - TollRoad - OpenRoad - PostB - Market - Stronghold - Bazaar. The Guild holds Trading Posts
+        /// with a Trader in PostA and PostB; the Militant Defender owns TollRoad (garrisoned), PostB (garrisoned),
+        /// the empty Market and Bazaar and the fortified Stronghold; OpenRoad is neutral.
         /// </summary>
         private PrototypeGameSession CreateGuildSession(int guildGold = PrototypeGameSession.StartingGold)
         {
@@ -180,7 +181,9 @@ namespace Tests.Editor
                     new List<UnitInstance> { Trader(2), Soldier(11), Soldier(12) }, tradingPostOwnerId: Guild),
                 new ProvinceState(Market, "Market", false, new[] { PostB, Stronghold }, Defender,
                     new List<UnitInstance>()),
-                new ProvinceState(Stronghold, "Stronghold", true, new[] { Market }, Defender,
+                new ProvinceState(Stronghold, "Stronghold", true, new[] { Market, Bazaar }, Defender,
+                    new List<UnitInstance>()),
+                new ProvinceState(Bazaar, "Bazaar", false, new[] { Stronghold }, Defender,
                     new List<UnitInstance>())
             };
 
@@ -216,6 +219,24 @@ namespace Tests.Editor
             Assert.AreEqual(0, CountTraders(session.Provinces[PostA], false));
             Assert.AreEqual(1, CountTraders(session.Provinces[PostB], true));
             Assert.AreEqual(1, CountTraders(session.Provinces[PostB], false));
+        }
+
+        [Test]
+        public void RunCaravan_EarnsOneBonusGoldPerProvince_ForEveryTwoBuiltTradingPosts()
+        {
+            var session = CreateGuildSession(guildGold: 30);
+            session.HostileBuyout(Market);
+            Assert.AreEqual(1, session.GetBuiltTradingPosts(Guild));
+            Assert.AreEqual(GuildRuleset.CaravanGoldPerProvince, GuildRuleset.CaravanGoldPerProvinceFor(1));
+
+            session.HostileBuyout(Bazaar);
+            Assert.AreEqual(2, session.GetBuiltTradingPosts(Guild));
+            int goldBefore = session.CurrentPlayer.Gold;
+
+            Assert.AreEqual(CommandResult.Ok, session.RunCaravan(PostA, PostB));
+
+            // 2 built posts: 3 Gold per province entered, minus 2 transit fees
+            Assert.AreEqual(goldBefore + 3 * 3 - 2, session.CurrentPlayer.Gold);
         }
 
         [Test]

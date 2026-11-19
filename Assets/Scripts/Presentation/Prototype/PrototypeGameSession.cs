@@ -25,6 +25,8 @@ namespace Presentation.Prototype
         private readonly PlayerProfile[] _players;
         private readonly ProvinceState[] _provinces;
 
+        private readonly Dictionary<int, int> _builtTradingPosts = new();
+
         private int _currentPlayerIndex;
         private int _nextUnitId;
 
@@ -452,6 +454,7 @@ namespace Presentation.Prototype
 
             SetProvince(PlaceTradingPost(province.WithOccupation(CurrentPlayer.PlayerId, province.Units),
                 CurrentPlayer));
+            _builtTradingPosts[CurrentPlayer.PlayerId] = GetBuiltTradingPosts(CurrentPlayer.PlayerId) + 1;
             SpendActionPoint();
             StateChanged?.Invoke();
             return CommandResult.Ok;
@@ -478,7 +481,8 @@ namespace Presentation.Prototype
 
         /// <summary>
         /// Caravan Network: a Trader travels the shortest path between two of the Guild's Trading Posts.
-        /// Every province entered pays the Guild 2 Gold and charges 1 Gold transit to its owner; a route
+        /// Every province entered pays the Guild 2 Gold (more with built Trading Posts, see
+        /// <see cref="GuildRuleset.CaravanGoldPerProvinceFor"/>) and charges 1 Gold transit to its owner; a route
         /// through 3 or more provinces also scores 2 VP.
         /// </summary>
         public CommandResult RunCaravan(int originProvinceId, int destinationProvinceId)
@@ -491,9 +495,10 @@ namespace Presentation.Prototype
             if (path == null) return CommandResult.NoTradeRoute;
 
             int guildId = CurrentPlayer.PlayerId;
+            int goldPerProvince = GuildRuleset.CaravanGoldPerProvinceFor(GetBuiltTradingPosts(guildId));
             for (int i = 1; i < path.Count; i++)
             {
-                AddGold(_currentPlayerIndex, GuildRuleset.CaravanGoldPerProvince);
+                AddGold(_currentPlayerIndex, goldPerProvince);
 
                 int ownerId = _provinces[path[i]].OwnerId;
                 if (ownerId != ProvinceState.NeutralOwner && ownerId != guildId)
@@ -929,6 +934,10 @@ namespace Presentation.Prototype
                 }
             }
         }
+
+        /// <summary>Trading Posts the player built during the match, not counting the starting ones.</summary>
+        public int GetBuiltTradingPosts(int playerId) =>
+            _builtTradingPosts.TryGetValue(playerId, out int built) ? built : 0;
 
         /// <summary>Places the Guild's Trading Post, which comes with one Trader.</summary>
         private ProvinceState PlaceTradingPost(ProvinceState province, PlayerProfile guild)
