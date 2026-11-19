@@ -201,6 +201,7 @@ namespace Presentation.Prototype
 
             SetProvince(province.WithChurch(player.PlayerId));
             AddGold(_currentPlayerIndex, -ChurchCost);
+            AwardVictoryPoints(_currentPlayerIndex, ScoringEvent.ChurchBuilt);
             SpendActionPoint();
             StateChanged?.Invoke();
             return CommandResult.Ok;
@@ -351,6 +352,7 @@ namespace Presentation.Prototype
             }
 
             SetProvince(province.WithRebellionCell(null));
+            AwardVictoryPoints(_currentPlayerIndex, ScoringEvent.RebellionCrushed);
             SpendActionPoint();
             StateChanged?.Invoke();
             return CommandResult.Ok;
@@ -520,12 +522,7 @@ namespace Presentation.Prototype
 
             if (path.Count - 1 >= GuildRuleset.TradeRouteMinProvinces)
             {
-                var player = CurrentPlayer;
-                _players[_currentPlayerIndex] = player with
-                {
-                    VictoryPoints = player.VictoryPoints + GuildRuleset.TradeRouteVictoryPoints
-                };
-                IsGameOver = CurrentPlayer.VictoryPoints >= CrisisDirector.VictoryPointsThreshold;
+                AwardVictoryPoints(_currentPlayerIndex, ScoringEvent.TradeRouteCompleted);
             }
 
             SpendActionPoint();
@@ -631,12 +628,23 @@ namespace Presentation.Prototype
             else
             {
                 updatedUnits = Concat(updatedUnits, result.SurvivingDefenders);
+                if (province.RebellionCell != null && province.RebellionCell.IsOpenRebellion
+                    && province.RebellionCell.OwnerId == defenderPlayerId)
+                {
+                    AwardVictoryPoints(IndexOfPlayer(defenderPlayerId), ScoringEvent.RebellionDefended);
+                }
             }
 
             SetProvince(province.WithUnits(updatedUnits));
-            SpendActionPoint();
 
+            // Co-existing armies leave the province neutral, so taking it here is a capture from the defender.
             bool attackerHoldsHegemony = _provinces[provinceId].OwnerId == attacker.PlayerId;
+            if (attackerHoldsHegemony && province.OwnerId == ProvinceState.NeutralOwner)
+            {
+                AwardVictoryPoints(_currentPlayerIndex, ScoringEvent.ProvinceCaptured);
+            }
+
+            SpendActionPoint();
             BattleResolved?.Invoke(new BattleReport(
                 province.Name,
                 attacker.PlayerId,
@@ -658,7 +666,7 @@ namespace Presentation.Prototype
             int controlled = CountProvinces(player.PlayerId);
             int gold = player.Gold + _rules.CalculateRevenue(player.Faction, controlled);
             int victoryPoints = player.VictoryPoints + _rules.CalculateUpkeepVictoryPoints(player.Faction,
-                new UpkeepState(controlled, CountTradingPosts(player.PlayerId), gold));
+                CountUpkeepState(player.PlayerId, controlled, gold));
             var beforeRules = CopyProfile(player, player.Faction, gold, victoryPoints,
                 CollectUnits(player.PlayerId));
 
@@ -966,18 +974,38 @@ namespace Presentation.Prototype
             return -1;
         }
 
-        private int CountTradingPosts(int playerId)
+        private UpkeepState CountUpkeepState(int playerId, int controlledProvinces, int gold)
         {
-            int count = 0;
+            int tradingPosts = 0;
+            int presenceTokens = 0;
+            int openRebellions = 0;
             for (int i = 0; i < _provinces.Length; i++)
             {
-                if (_provinces[i].TradingPostOwnerId == playerId)
+                var province = _provinces[i];
+                if (province.TradingPostOwnerId == playerId) tradingPosts++;
+                if (province.PresenceToken != null && province.PresenceToken.OwnerId == playerId) presenceTokens++;
+                if (province.RebellionCell != null && province.RebellionCell.IsOpenRebellion
+                    && province.RebellionCell.OwnerId == playerId)
                 {
-                    count++;
+                    openRebellions++;
                 }
             }
 
-            return count;
+            return new UpkeepState(controlledProvinces, tradingPosts, gold, presenceTokens, openRebellions);
+        }
+
+        /// <summary>Scores a board event for the player's faction; reaching the threshold ends the game at once.</summary>
+        private void AwardVictoryPoints(int playerIndex, ScoringEvent scoringEvent)
+        {
+            var player = _players[playerIndex];
+            int points = _rules.ScoreEvent(player.Faction, scoringEvent);
+            if (points == 0) return;
+
+            _players[playerIndex] = player with { VictoryPoints = player.VictoryPoints + points };
+            if (_players[playerIndex].VictoryPoints >= CrisisDirector.VictoryPointsThreshold)
+            {
+                IsGameOver = true;
+            }
         }
 
         /// <summary>
@@ -1107,10 +1135,21 @@ namespace Presentation.Prototype
             return units;
         }
 
+        /// <summary>
+        /// Stores the province with re-evaluated hegemony. Taking it from another player scores a capture for
+        /// the current player.
+        /// </summary>
         private void SetProvince(ProvinceState province)
         {
+            int previousOwnerId = _provinces[province.Id].OwnerId;
             var evaluated = EvaluateHegemony(province);
             _provinces[evaluated.Id] = evaluated;
+            if (evaluated.OwnerId == CurrentPlayer.PlayerId && previousOwnerId != evaluated.OwnerId
+                && previousOwnerId != ProvinceState.NeutralOwner)
+            {
+                AwardVictoryPoints(_currentPlayerIndex, ScoringEvent.ProvinceCaptured);
+            }
+
             OnProvinceStateChanged?.Invoke(evaluated);
         }
 

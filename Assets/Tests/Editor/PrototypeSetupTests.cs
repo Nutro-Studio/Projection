@@ -27,6 +27,8 @@ namespace Tests.Editor
 
             public int CalculateUpkeepVictoryPoints(FactionType faction, UpkeepState state) => 0;
 
+            public int ScoreEvent(FactionType faction, ScoringEvent scoringEvent) => 0;
+
             public int RollContest() => throw new System.NotSupportedException();
 
             public bool CanTriggerAscension(PlayerProfile player, int controlledProvinces) => false;

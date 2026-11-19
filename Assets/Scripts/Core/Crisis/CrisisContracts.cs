@@ -27,7 +27,24 @@ namespace Core.Crisis
     );
 
     /// <summary>What a player holds at upkeep, as far as Victory Point scoring is concerned.</summary>
-    public record UpkeepState(int ControlledProvinces, int TradingPosts, int Gold);
+    public record UpkeepState(
+        int ControlledProvinces,
+        int TradingPosts,
+        int Gold,
+        int PresenceTokens = 0,
+        int OpenRebellions = 0
+    );
+
+    /// <summary>Board events that score Victory Points the moment they happen.</summary>
+    public enum ScoringEvent
+    {
+        ProvinceCaptured,
+        RebellionCrushed,
+        FortificationBuilt,
+        ChurchBuilt,
+        RebellionDefended,
+        TradeRouteCompleted
+    }
 
     public interface IFactionRuleset
     {
@@ -36,6 +53,7 @@ namespace Core.Crisis
         bool ReceivesFortificationBonus { get; }
         int CalculateUpkeepRevenue(int controlledProvinces);
         int CalculateUpkeepVictoryPoints(UpkeepState state);
+        int ScoreEvent(ScoringEvent scoringEvent);
     }
 
     public interface ICrisisDirector

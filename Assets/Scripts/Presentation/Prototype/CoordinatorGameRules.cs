@@ -40,6 +40,9 @@ namespace Presentation.Prototype
         public int CalculateUpkeepVictoryPoints(FactionType faction, UpkeepState state) =>
             _coordinator.GetRuleset(faction).CalculateUpkeepVictoryPoints(state);
 
+        public int ScoreEvent(FactionType faction, ScoringEvent scoringEvent) =>
+            _coordinator.GetRuleset(faction).ScoreEvent(scoringEvent);
+
         public int RollContest()
         {
             var (roll1, roll2, roll3) = _contestDice.Roll3D4();

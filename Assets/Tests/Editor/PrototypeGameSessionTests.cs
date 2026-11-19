@@ -76,6 +76,9 @@ namespace Tests.Editor
             public int CalculateUpkeepVictoryPoints(FactionType faction, UpkeepState state) =>
                 _rulesets[faction].CalculateUpkeepVictoryPoints(state);
 
+            public int ScoreEvent(FactionType faction, ScoringEvent scoringEvent) =>
+                _rulesets[faction].ScoreEvent(scoringEvent);
+
             public int RollContest()
             {
                 var (roll1, roll2, roll3) = _dice.Roll3D4();
@@ -305,6 +308,113 @@ namespace Tests.Editor
 
             // 2 Trading Posts + floor(21 / 10) Gold
             Assert.AreEqual(4, session.GetPlayer(Guild).VictoryPoints);
+        }
+
+        [Test]
+        public void InitiateBattle_WinningContestedProvince_ScoresCaptureForMilitants()
+        {
+            var session = CreateSession(defenderUnits: 2);
+            session.BuyUnit(AttackerHome);
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+            Assert.AreEqual(ProvinceState.NeutralOwner, session.Provinces[DefenderHome].OwnerId);
+            _dice.DefenderRoll = (0, 0, 0);
+
+            session.InitiateBattle(DefenderHome, Defender);
+
+            Assert.AreEqual(Attacker, session.Provinces[DefenderHome].OwnerId);
+            Assert.AreEqual(MilitantRuleset.CaptureVictoryPoints, session.GetPlayer(Attacker).VictoryPoints);
+        }
+
+        [Test]
+        public void Capture_IsScoredOnce_WhenMoveAlreadyTakesHegemonyBeforeBattle()
+        {
+            var session = CreateSession();
+            session.BuyUnit(AttackerHome);
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+            Assert.AreEqual(Attacker, session.Provinces[DefenderHome].OwnerId);
+
+            session.InitiateBattle(DefenderHome, Defender);
+
+            Assert.AreEqual(MilitantRuleset.CaptureVictoryPoints, session.GetPlayer(Attacker).VictoryPoints);
+        }
+
+        [Test]
+        public void MoveArmy_IntoUndefendedEnemyProvince_ScoresCapture_ButNotIntoNeutralLand()
+        {
+            var session = CreateSession(defenderUnits: 0);
+            session.BuyUnit(AttackerHome);
+
+            Move(session, AttackerHome, NeutralLand, 1);
+            Assert.AreEqual(0, session.GetPlayer(Attacker).VictoryPoints);
+
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+            Assert.AreEqual(Attacker, session.Provinces[DefenderHome].OwnerId);
+            Assert.AreEqual(MilitantRuleset.CaptureVictoryPoints, session.GetPlayer(Attacker).VictoryPoints);
+        }
+
+        [Test]
+        public void MoveArmy_CaptureScoresNothingForZealots()
+        {
+            var session = CreateSession(attackerFaction: FactionType.Zealots, defenderUnits: 0);
+
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+
+            Assert.AreEqual(Attacker, session.Provinces[DefenderHome].OwnerId);
+            Assert.AreEqual(0, session.GetPlayer(Attacker).VictoryPoints);
+        }
+
+        [Test]
+        public void MartialLaw_CrushingOpenRebellion_ScoresTwoVictoryPoints()
+        {
+            var session = CreateSession(defenderFaction: FactionType.Guerrillas);
+            session.EndTurn();
+            session.PlaceRebellionCell(AttackerHome);
+            session.InciteRebellion(AttackerHome);
+            session.EndTurn();
+
+            session.MartialLaw(AttackerHome);
+
+            Assert.AreEqual(MilitantRuleset.CaptureVictoryPoints, session.GetPlayer(Attacker).VictoryPoints);
+        }
+
+        [Test]
+        public void BuildChurch_ScoresTwoVictoryPointsForZealots()
+        {
+            var session = CreateSession(attackerFaction: FactionType.Zealots);
+
+            session.BuildChurch(AttackerHome);
+
+            Assert.AreEqual(ZealotRuleset.ChurchVictoryPoints, session.GetPlayer(Attacker).VictoryPoints);
+        }
+
+        [Test]
+        public void EndTurn_Zealots_ScoreOnePerReligiousPresenceToken()
+        {
+            var session = CreateSession(attackerFaction: FactionType.Zealots);
+            session.BuyMissionary(AttackerHome);
+            session.Consecrate(AttackerHome);
+
+            session.EndTurn();
+
+            Assert.AreEqual(1, session.GetPlayer(Attacker).VictoryPoints);
+        }
+
+        [Test]
+        public void Guerrillas_ScoreOpenRebellionAtUpkeep_AndDefendingItInBattle()
+        {
+            var session = CreateSession(defenderFaction: FactionType.Guerrillas, defenderUnits: 2);
+            session.EndTurn();
+            session.PlaceRebellionCell(DefenderHome);
+            session.InciteRebellion(DefenderHome);
+            session.EndTurn();
+            Assert.AreEqual(1, session.GetPlayer(Defender).VictoryPoints);
+
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+            session.InitiateBattle(DefenderHome, Defender);
+
+            Assert.AreNotEqual(Attacker, session.Provinces[DefenderHome].OwnerId);
+            Assert.AreEqual(1 + GuerrillaRuleset.RebellionDefenseVictoryPoints,
+                session.GetPlayer(Defender).VictoryPoints);
         }
 
         private static CommandResult MoveAllMovable(PrototypeGameSession session, int from, int to) =>
@@ -589,7 +699,7 @@ namespace Tests.Editor
 
             Assert.AreEqual(Defender, session.CurrentPlayer.PlayerId);
             Assert.AreEqual(PrototypeGameSession.StartingGold + 1, session.GetPlayer(Attacker).Gold);
-            Assert.AreEqual(1, session.GetPlayer(Attacker).VictoryPoints);
+            Assert.AreEqual(0, session.GetPlayer(Attacker).VictoryPoints, "Militants score per 3 provinces.");
             Assert.AreEqual(1, session.TurnNumber);
 
             session.EndTurn();
@@ -626,7 +736,9 @@ namespace Tests.Editor
         [Test]
         public void EndTurn_ReachingFiftyVictoryPoints_EndsGame()
         {
-            var session = CreateSession(attackerVictoryPoints: 49);
+            var session = CreateSession(attackerFaction: FactionType.Zealots, attackerVictoryPoints: 49);
+            session.BuyMissionary(AttackerHome);
+            session.Consecrate(AttackerHome);
 
             session.EndTurn();
 

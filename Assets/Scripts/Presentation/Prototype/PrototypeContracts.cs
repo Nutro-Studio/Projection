@@ -84,6 +84,7 @@ namespace Presentation.Prototype
         PlayerProfile EvaluatePlayerTurnState(PlayerProfile player, int controlledProvinces);
         int CalculateRevenue(FactionType faction, int controlledProvinces);
         int CalculateUpkeepVictoryPoints(FactionType faction, UpkeepState state);
+        int ScoreEvent(FactionType faction, ScoringEvent scoringEvent);
 
         /// <summary>One side of a contested roll such as Divine Conversion: the sum of 3d4.</summary>
         int RollContest();
