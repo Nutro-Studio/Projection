@@ -10,6 +10,7 @@ namespace Presentation.Prototype
     public sealed class ProvinceSeed
     {
         public const int NoRebellionCell = -1;
+        public const int NoTradingPost = ProvinceState.NoTradingPost;
 
         public int Id { get; }
         public string Name { get; }
@@ -23,6 +24,9 @@ namespace Presentation.Prototype
         /// <summary>Player whose undercover Rebellion Cell starts here, or <see cref="NoRebellionCell"/>.</summary>
         public int RebellionCellOwnerId { get; }
 
+        /// <summary>Guild player whose Trading Post starts here, or <see cref="NoTradingPost"/>.</summary>
+        public int TradingPostOwnerId { get; }
+
         public ProvinceSeed(
             int id,
             string name,
@@ -32,7 +36,8 @@ namespace Presentation.Prototype
             int regularUnits,
             int missionaries = 0,
             bool hasChurch = false,
-            int rebellionCellOwnerId = NoRebellionCell)
+            int rebellionCellOwnerId = NoRebellionCell,
+            int tradingPostOwnerId = NoTradingPost)
         {
             Id = id;
             Name = name;
@@ -43,6 +48,7 @@ namespace Presentation.Prototype
             Missionaries = missionaries;
             HasChurch = hasChurch;
             RebellionCellOwnerId = rebellionCellOwnerId;
+            TradingPostOwnerId = tradingPostOwnerId;
         }
     }
 
@@ -72,7 +78,7 @@ namespace Presentation.Prototype
             {
                 var seed = seeds[i];
                 var faction = FactionOf(players, seed.OwnerId);
-                var units = new List<UnitInstance>(seed.RegularUnits + seed.Missionaries);
+                var units = new List<UnitInstance>(seed.RegularUnits + seed.Missionaries + 1);
                 for (int u = 0; u < seed.RegularUnits; u++)
                 {
                     units.Add(new UnitInstance(nextUnitId++, seed.OwnerId, faction, UnitType.RegularMilitary, 1, 1));
@@ -83,12 +89,19 @@ namespace Presentation.Prototype
                     units.Add(new UnitInstance(nextUnitId++, seed.OwnerId, faction, UnitType.Missionary, 1, 1));
                 }
 
+                // Each Trading Post comes with one Trader for the Caravan Network.
+                if (seed.TradingPostOwnerId != ProvinceSeed.NoTradingPost)
+                {
+                    units.Add(new UnitInstance(nextUnitId++, seed.TradingPostOwnerId,
+                        FactionOf(players, seed.TradingPostOwnerId), UnitType.Trader, 1, 1));
+                }
+
                 var cell = seed.RebellionCellOwnerId == ProvinceSeed.NoRebellionCell
                     ? null
                     : new RebellionCell(seed.RebellionCellOwnerId, false);
 
                 provinces.Add(new ProvinceState(seed.Id, seed.Name, seed.HasFort, seed.Neighbours, seed.OwnerId, units,
-                    seed.HasChurch ? seed.OwnerId : ProvinceState.NoChurch, null, cell));
+                    seed.HasChurch ? seed.OwnerId : ProvinceState.NoChurch, null, cell, seed.TradingPostOwnerId));
             }
 
             return provinces;

@@ -73,6 +73,9 @@ namespace Tests.Editor
             public int CalculateRevenue(FactionType faction, int controlledProvinces) =>
                 _rulesets[faction].CalculateUpkeepRevenue(controlledProvinces);
 
+            public int CalculateUpkeepVictoryPoints(FactionType faction, UpkeepState state) =>
+                _rulesets[faction].CalculateUpkeepVictoryPoints(state);
+
             public int RollContest()
             {
                 var (roll1, roll2, roll3) = _dice.Roll3D4();
@@ -138,6 +141,149 @@ namespace Tests.Editor
             };
 
             return new PrototypeGameSession(new CoreRules(_dice), players, provinces, crisisEnabled);
+        }
+
+        private const int Guild = Attacker;
+        private const int PostA = 0;
+        private const int TollRoad = 1;
+        private const int OpenRoad = 2;
+        private const int PostB = 3;
+        private const int Market = 4;
+        private const int Stronghold = 5;
+
+        /// <summary>
+        /// A chain PostA - TollRoad - OpenRoad - PostB - Market - Stronghold. The Guild holds Trading Posts with a
+        /// Trader in PostA and PostB; the Militant Defender owns TollRoad (garrisoned), PostB (garrisoned), the
+        /// empty Market and the fortified Stronghold; OpenRoad is neutral.
+        /// </summary>
+        private PrototypeGameSession CreateGuildSession(int guildGold = PrototypeGameSession.StartingGold)
+        {
+            var players = new[]
+            {
+                new PlayerProfile(Guild, FactionType.Guilds, guildGold, 0, new List<UnitInstance>()),
+                new PlayerProfile(Defender, FactionType.Militants, PrototypeGameSession.StartingGold, 0,
+                    new List<UnitInstance>())
+            };
+
+            UnitInstance Trader(int id) => new(id, Guild, FactionType.Guilds, UnitType.Trader, 1, 1);
+            UnitInstance Soldier(int id) => new(id, Defender, FactionType.Militants, UnitType.RegularMilitary, 1, 1);
+
+            var provinces = new[]
+            {
+                new ProvinceState(PostA, "PostA", false, new[] { TollRoad }, ProvinceState.NeutralOwner,
+                    new List<UnitInstance> { Trader(1) }, tradingPostOwnerId: Guild),
+                new ProvinceState(TollRoad, "TollRoad", false, new[] { PostA, OpenRoad }, Defender,
+                    new List<UnitInstance> { Soldier(10) }),
+                new ProvinceState(OpenRoad, "OpenRoad", false, new[] { TollRoad, PostB }, ProvinceState.NeutralOwner,
+                    new List<UnitInstance>()),
+                new ProvinceState(PostB, "PostB", false, new[] { OpenRoad, Market }, Defender,
+                    new List<UnitInstance> { Trader(2), Soldier(11), Soldier(12) }, tradingPostOwnerId: Guild),
+                new ProvinceState(Market, "Market", false, new[] { PostB, Stronghold }, Defender,
+                    new List<UnitInstance>()),
+                new ProvinceState(Stronghold, "Stronghold", true, new[] { Market }, Defender,
+                    new List<UnitInstance>())
+            };
+
+            return new PrototypeGameSession(new CoreRules(_dice), players, provinces, false);
+        }
+
+        private static int CountTraders(ProvinceState province, bool hasActed)
+        {
+            int count = 0;
+            for (int i = 0; i < province.Units.Count; i++)
+            {
+                if (province.Units[i].Type == UnitType.Trader && province.Units[i].HasActed == hasActed)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        [Test]
+        public void RunCaravan_EarnsTwoGoldPerProvince_PaysTransitToOwners_AndScoresLongRoute()
+        {
+            var session = CreateGuildSession();
+
+            Assert.AreEqual(CommandResult.Ok, session.RunCaravan(PostA, PostB));
+
+            // 3 provinces entered: +6 Gold, minus 1 Gold transit for TollRoad and PostB (OpenRoad is neutral)
+            Assert.AreEqual(PrototypeGameSession.StartingGold + 4, session.GetPlayer(Guild).Gold);
+            Assert.AreEqual(PrototypeGameSession.StartingGold + 2, session.GetPlayer(Defender).Gold);
+            Assert.AreEqual(GuildRuleset.TradeRouteVictoryPoints, session.GetPlayer(Guild).VictoryPoints);
+            Assert.AreEqual(PlayerProfile.BaseActionPoints - 1, session.CurrentPlayer.ActionPoints);
+            Assert.AreEqual(0, CountTraders(session.Provinces[PostA], false));
+            Assert.AreEqual(1, CountTraders(session.Provinces[PostB], true));
+            Assert.AreEqual(1, CountTraders(session.Provinces[PostB], false));
+        }
+
+        [Test]
+        public void RunCaravan_IsRejected_WithoutTradingPostsOrIdleTrader()
+        {
+            var session = CreateGuildSession();
+
+            Assert.AreEqual(CommandResult.NoTradingPost, session.RunCaravan(TollRoad, PostB));
+            Assert.AreEqual(CommandResult.NoTradingPost, session.RunCaravan(PostA, OpenRoad));
+            Assert.AreEqual(CommandResult.NoTradingPost, session.RunCaravan(PostA, PostA));
+
+            session.RunCaravan(PostA, PostB);
+
+            Assert.AreEqual(CommandResult.NoTrader, session.RunCaravan(PostA, PostB));
+            Assert.AreEqual(CommandResult.WrongFaction, CreateSession().RunCaravan(AttackerHome, DefenderHome));
+        }
+
+        [Test]
+        public void HostileBuyout_PaysMarketValueToOwner_AndPlacesTradingPostWithTrader()
+        {
+            var session = CreateGuildSession();
+
+            Assert.AreEqual(GuildRuleset.BuyoutBasePrice, session.GetHostileBuyoutPrice(Market));
+            Assert.AreEqual(CommandResult.Ok, session.HostileBuyout(Market));
+
+            var market = session.Provinces[Market];
+            Assert.AreEqual(Guild, market.OwnerId);
+            Assert.AreEqual(Guild, market.TradingPostOwnerId);
+            Assert.AreEqual(1, CountTraders(market, false));
+            Assert.AreEqual(PrototypeGameSession.StartingGold - 5, session.GetPlayer(Guild).Gold);
+            Assert.AreEqual(PrototypeGameSession.StartingGold + 5, session.GetPlayer(Defender).Gold);
+            Assert.AreEqual(PlayerProfile.BaseActionPoints - 1, session.CurrentPlayer.ActionPoints);
+        }
+
+        [Test]
+        public void HostileBuyout_IsRejected_ForFortifiedGarrisonedNeutralOrUnaffordableProvinces()
+        {
+            var session = CreateGuildSession();
+
+            Assert.AreEqual(CommandResult.InvalidBuyoutTarget, session.HostileBuyout(Stronghold));
+            Assert.AreEqual(CommandResult.InvalidBuyoutTarget, session.HostileBuyout(TollRoad));
+            Assert.AreEqual(CommandResult.InvalidBuyoutTarget, session.HostileBuyout(OpenRoad));
+            Assert.AreEqual(CommandResult.NotEnoughGold, CreateGuildSession(guildGold: 4).HostileBuyout(Market));
+            Assert.AreEqual(CommandResult.WrongFaction, CreateSession().HostileBuyout(DefenderHome));
+        }
+
+        [Test]
+        public void GetHostileBuyoutPrice_AddsThreeGoldPerUnitOfTheOwner()
+        {
+            Assert.AreEqual(GuildRuleset.BuyoutBasePrice + 2 * GuildRuleset.BuyoutPricePerUnit,
+                CreateGuildSession().GetHostileBuyoutPrice(PostB));
+        }
+
+        [Test]
+        public void TradingPost_CountsTowardsHegemony()
+        {
+            Assert.AreEqual(Guild, CreateGuildSession().Provinces[PostA].OwnerId);
+        }
+
+        [Test]
+        public void EndTurn_Guilds_ScorePerTradingPostAndPerTenGoldBanked()
+        {
+            var session = CreateGuildSession(guildGold: 21);
+
+            session.EndTurn();
+
+            // 2 Trading Posts + floor(21 / 10) Gold
+            Assert.AreEqual(4, session.GetPlayer(Guild).VictoryPoints);
         }
 
         private static CommandResult MoveAllMovable(PrototypeGameSession session, int from, int to) =>

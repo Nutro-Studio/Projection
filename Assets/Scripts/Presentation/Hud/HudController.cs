@@ -316,6 +316,23 @@ namespace Presentation.Hud
                         HudText.BuyTraderButton(),
                         hasAp && isOwnProvince && player.Gold >= PrototypeGameSession.TraderCost,
                         _interaction.BuyTrader);
+
+                    if (province.TradingPostOwnerId == player.PlayerId)
+                    {
+                        AddActionButton(
+                            HudText.CaravanButton(),
+                            _session.ValidateCaravanOrigin(selectedProvinceId) == CommandResult.Ok,
+                            _interaction.BeginCaravan);
+                    }
+
+                    if (province.OwnerId != ProvinceState.NeutralOwner && !isOwnProvince)
+                    {
+                        AddActionButton(
+                            HudText.BuyoutButton(_session.GetHostileBuyoutPrice(selectedProvinceId)),
+                            _session.ValidateHostileBuyout(selectedProvinceId) == CommandResult.Ok,
+                            _interaction.HostileBuyout);
+                    }
+
                     break;
             }
 
@@ -384,7 +401,8 @@ namespace Presentation.Hud
                 ? failure
                 : HudText.Hint(
                     _interaction.SelectedProvinceId != HudInteraction.NoSelection,
-                    _interaction.IsTargetingMove);
+                    _interaction.IsTargetingMove,
+                    _interaction.IsTargetingCaravan);
         }
 
         private void ShowRulesetShift(CrisisShiftResult shift)

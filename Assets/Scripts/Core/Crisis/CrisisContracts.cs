@@ -26,12 +26,16 @@ namespace Core.Crisis
         bool IsVoluntary
     );
 
+    /// <summary>What a player holds at upkeep, as far as Victory Point scoring is concerned.</summary>
+    public record UpkeepState(int ControlledProvinces, int TradingPosts, int Gold);
+
     public interface IFactionRuleset
     {
         FactionType Archetype { get; }
         bool IsLanded { get; }
         bool ReceivesFortificationBonus { get; }
         int CalculateUpkeepRevenue(int controlledProvinces);
+        int CalculateUpkeepVictoryPoints(UpkeepState state);
     }
 
     public interface ICrisisDirector

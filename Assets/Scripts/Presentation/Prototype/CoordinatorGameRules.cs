@@ -37,6 +37,9 @@ namespace Presentation.Prototype
         public int CalculateRevenue(FactionType faction, int controlledProvinces) =>
             _coordinator.GetRuleset(faction).CalculateUpkeepRevenue(controlledProvinces);
 
+        public int CalculateUpkeepVictoryPoints(FactionType faction, UpkeepState state) =>
+            _coordinator.GetRuleset(faction).CalculateUpkeepVictoryPoints(state);
+
         public int RollContest()
         {
             var (roll1, roll2, roll3) = _contestDice.Roll3D4();

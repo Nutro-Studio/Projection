@@ -8,7 +8,8 @@ namespace Presentation.Hud
     public enum TargetingMode
     {
         None,
-        Move
+        Move,
+        Caravan
     }
 
     /// <summary>
@@ -29,6 +30,7 @@ namespace Presentation.Hud
         public CommandResult LastResult { get; private set; } = CommandResult.Ok;
 
         public bool IsTargetingMove => Targeting == TargetingMode.Move;
+        public bool IsTargetingCaravan => Targeting == TargetingMode.Caravan;
 
         public int MovableUnitCount =>
             SelectedProvinceId == NoSelection ? 0 : GetFilteredMovableUnitIds(SelectedProvinceId).Count;
@@ -55,6 +57,7 @@ namespace Presentation.Hud
             }
 
             int origin = SelectedProvinceId;
+            var targeting = Targeting;
             Targeting = TargetingMode.None;
 
             if (provinceId == origin)
@@ -63,7 +66,9 @@ namespace Presentation.Hud
                 return;
             }
 
-            LastResult = _session.MoveArmy(new MoveArmyCommand(origin, provinceId, TakeUnitsToMove(origin)));
+            LastResult = targeting == TargetingMode.Caravan
+                ? _session.RunCaravan(origin, provinceId)
+                : _session.MoveArmy(new MoveArmyCommand(origin, provinceId, TakeUnitsToMove(origin)));
             if (LastResult == CommandResult.Ok)
             {
                 Select(provinceId);
@@ -124,6 +129,23 @@ namespace Presentation.Hud
             }
 
             Targeting = LastResult == CommandResult.Ok ? TargetingMode.Move : TargetingMode.None;
+            Changed?.Invoke();
+        }
+
+        public void BeginCaravan()
+        {
+            if (SelectedProvinceId == NoSelection) return;
+
+            LastResult = _session.ValidateCaravanOrigin(SelectedProvinceId);
+            Targeting = LastResult == CommandResult.Ok ? TargetingMode.Caravan : TargetingMode.None;
+            Changed?.Invoke();
+        }
+
+        public void HostileBuyout()
+        {
+            if (SelectedProvinceId == NoSelection) return;
+
+            LastResult = _session.HostileBuyout(SelectedProvinceId);
             Changed?.Invoke();
         }
 
@@ -247,10 +269,13 @@ namespace Presentation.Hud
             Changed?.Invoke();
         }
 
-        public bool IsValidMoveTarget(int provinceId) =>
-            Targeting != TargetingMode.None
-            && provinceId != SelectedProvinceId
-            && _session.Provinces[SelectedProvinceId].IsAdjacentTo(provinceId);
+        public bool IsValidMoveTarget(int provinceId) => Targeting switch
+        {
+            TargetingMode.Move => provinceId != SelectedProvinceId
+                                  && _session.Provinces[SelectedProvinceId].IsAdjacentTo(provinceId),
+            TargetingMode.Caravan => _session.IsCaravanDestination(SelectedProvinceId, provinceId),
+            _ => false
+        };
 
         private void Select(int provinceId)
         {

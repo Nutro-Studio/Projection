@@ -102,7 +102,7 @@ namespace Presentation.Hud
 
         public static string ProvinceMarkers(ProvinceState province, Func<int, PlayerProfile> getPlayer)
         {
-            var markers = new List<string>(3);
+            var markers = new List<string>(4);
 
             if (province.HasChurch)
             {
@@ -116,6 +116,13 @@ namespace Presentation.Hud
                 var owner = getPlayer(province.PresenceToken.OwnerId);
                 string who = owner != null ? $"P{owner.PlayerId}" : $"P{province.PresenceToken.OwnerId}";
                 markers.Add($"Religious Presence ({who})");
+            }
+
+            if (province.HasTradingPost)
+            {
+                var owner = getPlayer(province.TradingPostOwnerId);
+                string who = owner != null ? $"P{owner.PlayerId}" : $"P{province.TradingPostOwnerId}";
+                markers.Add($"Trading Post ({who})");
             }
 
             if (province.RebellionCell != null)
@@ -141,6 +148,10 @@ namespace Presentation.Hud
         public static string BuyMissionaryButton() => $"Buy Missionary ({PrototypeGameSession.MissionaryCost}G)";
 
         public static string BuyTraderButton() => $"Buy Trader ({PrototypeGameSession.TraderCost}G)";
+
+        public static string CaravanButton() => "Caravan";
+
+        public static string BuyoutButton(int price) => $"Hostile Buyout ({price}G)";
 
         public static string BuildChurchButton() => $"Build Church ({PrototypeGameSession.ChurchCost}G)";
 
@@ -185,12 +196,17 @@ namespace Presentation.Hud
             CommandResult.NothingToPurge => "There is nothing here to purge.",
             CommandResult.InvalidBattleTarget => "Choose a valid enemy force in this province.",
             CommandResult.InvalidRulesetShift => "Ruleset shift requirements are not met.",
+            CommandResult.NoTradingPost => "This needs your Trading Post here and at the destination.",
+            CommandResult.NoTrader => "This needs an idle Trader in the province.",
+            CommandResult.NoTradeRoute => "No route connects these Trading Posts.",
+            CommandResult.InvalidBuyoutTarget => "Only an unfortified, ungarrisoned enemy province can be bought.",
             _ => result.ToString()
         };
 
-        public static string Hint(bool hasSelection, bool isTargetingMove)
+        public static string Hint(bool hasSelection, bool isTargetingMove, bool isTargetingCaravan = false)
         {
             if (isTargetingMove) return "Click a highlighted province to move. Esc cancels.";
+            if (isTargetingCaravan) return "Click a highlighted Trading Post to send the caravan. Esc cancels.";
 
             return hasSelection
                 ? "Choose an action or move units. Space ends the turn."

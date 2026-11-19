@@ -25,6 +25,8 @@ namespace Tests.Editor
 
             public int CalculateRevenue(FactionType faction, int controlledProvinces) => 0;
 
+            public int CalculateUpkeepVictoryPoints(FactionType faction, UpkeepState state) => 0;
+
             public int RollContest() => throw new System.NotSupportedException();
 
             public bool CanTriggerAscension(PlayerProfile player, int controlledProvinces) => false;
@@ -68,6 +70,37 @@ namespace Tests.Editor
             }
 
             return count;
+        }
+
+        [Test]
+        public void BuildProvinces_SeedsTradingPostWithOneTraderForItsGuild()
+        {
+            const int guildId = 4;
+            var players = new[]
+            {
+                new PlayerProfile(PrototypeSetup.MilitantsPlayerId, FactionType.Militants, 10, 0,
+                    new List<UnitInstance>()),
+                new PlayerProfile(guildId, FactionType.Guilds, 10, 0, new List<UnitInstance>())
+            };
+            var seeds = new[]
+            {
+                new ProvinceSeed(0, "Capital", true, new int[0], PrototypeSetup.MilitantsPlayerId, 2,
+                    tradingPostOwnerId: guildId)
+            };
+
+            var province = PrototypeSetup.BuildProvinces(seeds, players)[0];
+
+            Assert.AreEqual(guildId, province.TradingPostOwnerId);
+            Assert.AreEqual(1, CountUnits(province, UnitType.Trader));
+            Assert.AreEqual(2, CountUnits(province, UnitType.RegularMilitary));
+            Assert.AreEqual(guildId, province.Units[2].OwnerPlayerId);
+            Assert.AreEqual(FactionType.Guilds, province.Units[2].OriginalFaction);
+        }
+
+        [Test]
+        public void BuildProvinces_LeavesProvincesWithoutTradingPostByDefault()
+        {
+            Assert.IsFalse(CreateSession().Provinces[MilitantHome].HasTradingPost);
         }
 
         [Test]

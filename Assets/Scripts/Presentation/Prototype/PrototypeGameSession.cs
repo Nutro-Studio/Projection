@@ -19,7 +19,6 @@ namespace Presentation.Prototype
         public const int ChurchTithe = 1;
         public const int RebellionCellCost = 2;
         public const int ConversionLimit = 2;
-        public const int VictoryPointsPerProvince = 1;
 
         private readonly IGameRules _rules;
         private readonly bool _crisisEnabled;
@@ -397,6 +396,138 @@ namespace Presentation.Prototype
             return CommandResult.Ok;
         }
 
+        /// <summary>
+        /// Market value of a province: a base price plus the price of each unit its owner keeps there.
+        /// </summary>
+        public int GetHostileBuyoutPrice(int provinceId)
+        {
+            var province = _provinces[provinceId];
+            int ownerUnits = 0;
+            for (int i = 0; i < province.Units.Count; i++)
+            {
+                if (province.Units[i].OwnerPlayerId == province.OwnerId)
+                {
+                    ownerUnits++;
+                }
+            }
+
+            return GuildRuleset.BuyoutBasePrice + ownerUnits * GuildRuleset.BuyoutPricePerUnit;
+        }
+
+        /// <summary>
+        /// A Guild can buy another player's province when it has no Fortification, no garrison of the owner's
+        /// military units and no Trading Post yet.
+        /// </summary>
+        public CommandResult ValidateHostileBuyout(int provinceId)
+        {
+            var check = ValidateAction(FactionType.Guilds);
+            if (check != CommandResult.Ok) return check;
+
+            var province = _provinces[provinceId];
+            int ownerId = province.OwnerId;
+            if (ownerId == ProvinceState.NeutralOwner || ownerId == CurrentPlayer.PlayerId || province.HasFort
+                || GetUnitsForPlayer(provinceId, ownerId, UnitType.RegularMilitary).Count > 0)
+            {
+                return CommandResult.InvalidBuyoutTarget;
+            }
+
+            if (province.HasTradingPost) return CommandResult.AlreadyBuilt;
+            if (CurrentPlayer.Gold < GetHostileBuyoutPrice(provinceId)) return CommandResult.NotEnoughGold;
+
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// Hostile Buyout: pays the market value to the owner and takes the province with a new Trading Post.
+        /// </summary>
+        public CommandResult HostileBuyout(int provinceId)
+        {
+            var check = ValidateHostileBuyout(provinceId);
+            if (check != CommandResult.Ok) return check;
+
+            var province = _provinces[provinceId];
+            int price = GetHostileBuyoutPrice(provinceId);
+            AddGold(_currentPlayerIndex, -price);
+            AddGold(IndexOfPlayer(province.OwnerId), price);
+
+            SetProvince(PlaceTradingPost(province.WithOccupation(CurrentPlayer.PlayerId, province.Units),
+                CurrentPlayer));
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// A caravan leaves from a province holding the current Guild's Trading Post and an idle Trader.
+        /// </summary>
+        public CommandResult ValidateCaravanOrigin(int provinceId)
+        {
+            var check = ValidateAction(FactionType.Guilds);
+            if (check != CommandResult.Ok) return check;
+            if (!HoldsOwnTradingPost(provinceId)) return CommandResult.NoTradingPost;
+            if (IndexOfIdleTrader(_provinces[provinceId].Units, CurrentPlayer.PlayerId) < 0)
+            {
+                return CommandResult.NoTrader;
+            }
+
+            return CommandResult.Ok;
+        }
+
+        public bool IsCaravanDestination(int originProvinceId, int provinceId) =>
+            provinceId != originProvinceId && HoldsOwnTradingPost(provinceId);
+
+        /// <summary>
+        /// Caravan Network: a Trader travels the shortest path between two of the Guild's Trading Posts.
+        /// Every province entered pays the Guild 2 Gold and charges 1 Gold transit to its owner; a route
+        /// through 3 or more provinces also scores 2 VP.
+        /// </summary>
+        public CommandResult RunCaravan(int originProvinceId, int destinationProvinceId)
+        {
+            var check = ValidateCaravanOrigin(originProvinceId);
+            if (check != CommandResult.Ok) return check;
+            if (!IsCaravanDestination(originProvinceId, destinationProvinceId)) return CommandResult.NoTradingPost;
+
+            var path = FindShortestPath(originProvinceId, destinationProvinceId);
+            if (path == null) return CommandResult.NoTradeRoute;
+
+            int guildId = CurrentPlayer.PlayerId;
+            for (int i = 1; i < path.Count; i++)
+            {
+                AddGold(_currentPlayerIndex, GuildRuleset.CaravanGoldPerProvince);
+
+                int ownerId = _provinces[path[i]].OwnerId;
+                if (ownerId != ProvinceState.NeutralOwner && ownerId != guildId)
+                {
+                    AddGold(_currentPlayerIndex, -GuildRuleset.CaravanTransitFee);
+                    AddGold(IndexOfPlayer(ownerId), GuildRuleset.CaravanTransitFee);
+                }
+            }
+
+            var origin = _provinces[originProvinceId];
+            int traderIndex = IndexOfIdleTrader(origin.Units, guildId);
+            var trader = origin.Units[traderIndex] with { HasActed = true };
+            var stayers = new List<UnitInstance>(origin.Units);
+            stayers.RemoveAt(traderIndex);
+            SetProvince(origin.WithUnits(stayers));
+
+            var destination = _provinces[destinationProvinceId];
+            SetProvince(destination.WithUnits(Concat(destination.Units, new[] { trader })));
+
+            if (path.Count - 1 >= GuildRuleset.TradeRouteMinProvinces)
+            {
+                var player = CurrentPlayer;
+                _players[_currentPlayerIndex] = player with
+                {
+                    VictoryPoints = player.VictoryPoints + GuildRuleset.TradeRouteVictoryPoints
+                };
+                IsGameOver = CurrentPlayer.VictoryPoints >= CrisisDirector.VictoryPointsThreshold;
+            }
+
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
         public List<int> GetMovableUnitIds(int provinceId)
         {
             var units = _provinces[provinceId].Units;
@@ -521,7 +652,8 @@ namespace Presentation.Prototype
             var player = CurrentPlayer;
             int controlled = CountProvinces(player.PlayerId);
             int gold = player.Gold + _rules.CalculateRevenue(player.Faction, controlled);
-            int victoryPoints = player.VictoryPoints + controlled * VictoryPointsPerProvince;
+            int victoryPoints = player.VictoryPoints + _rules.CalculateUpkeepVictoryPoints(player.Faction,
+                new UpkeepState(controlled, CountTradingPosts(player.PlayerId), gold));
             var beforeRules = CopyProfile(player, player.Faction, gold, victoryPoints,
                 CollectUnits(player.PlayerId));
 
@@ -552,7 +684,8 @@ namespace Presentation.Prototype
 
         /// <summary>
         /// Dynamically evaluates Province Hegemony via strict majority of total strength points:
-        /// each RegularMilitary unit = 1, Fort (owned by current controller) = 1, Church (owned by builder) = 1.
+        /// each RegularMilitary unit = 1, Fort (owned by current controller) = 1, Church (owned by builder) = 1,
+        /// Trading Post (owned by its Guild) = 1.
         /// </summary>
         private ProvinceState EvaluateHegemony(ProvinceState province)
         {
@@ -580,6 +713,11 @@ namespace Presentation.Prototype
                 }
 
                 if (province.HasChurch && province.ChurchOwnerId == playerId)
+                {
+                    strength++;
+                }
+
+                if (province.HasTradingPost && province.TradingPostOwnerId == playerId)
                 {
                     strength++;
                 }
@@ -790,6 +928,90 @@ namespace Presentation.Prototype
                     _provinces[i] = province.WithUnits(resetUnits);
                 }
             }
+        }
+
+        /// <summary>Places the Guild's Trading Post, which comes with one Trader.</summary>
+        private ProvinceState PlaceTradingPost(ProvinceState province, PlayerProfile guild)
+        {
+            var units = new List<UnitInstance>(province.Units)
+            {
+                new(_nextUnitId++, guild.PlayerId, guild.Faction, UnitType.Trader, 1, 1)
+            };
+
+            return province.WithUnits(units).WithTradingPost(guild.PlayerId);
+        }
+
+        private bool HoldsOwnTradingPost(int provinceId) =>
+            _provinces[provinceId].TradingPostOwnerId == CurrentPlayer.PlayerId;
+
+        private static int IndexOfIdleTrader(IReadOnlyList<UnitInstance> units, int playerId)
+        {
+            for (int i = 0; i < units.Count; i++)
+            {
+                if (units[i].OwnerPlayerId == playerId && units[i].Type == UnitType.Trader && !units[i].HasActed)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private int CountTradingPosts(int playerId)
+        {
+            int count = 0;
+            for (int i = 0; i < _provinces.Length; i++)
+            {
+                if (_provinces[i].TradingPostOwnerId == playerId)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// Breadth-first search over province adjacency. Returns the province ids from origin to destination,
+        /// both included, or null when they are not connected.
+        /// </summary>
+        private List<int> FindShortestPath(int originProvinceId, int destinationProvinceId)
+        {
+            var previous = new int[_provinces.Length];
+            for (int i = 0; i < previous.Length; i++)
+            {
+                previous[i] = -1;
+            }
+
+            previous[originProvinceId] = originProvinceId;
+            var queue = new Queue<int>(_provinces.Length);
+            queue.Enqueue(originProvinceId);
+            while (queue.Count > 0)
+            {
+                int current = queue.Dequeue();
+                if (current == destinationProvinceId) break;
+
+                var neighbours = _provinces[current].Neighbours;
+                for (int i = 0; i < neighbours.Count; i++)
+                {
+                    if (previous[neighbours[i]] >= 0) continue;
+
+                    previous[neighbours[i]] = current;
+                    queue.Enqueue(neighbours[i]);
+                }
+            }
+
+            if (previous[destinationProvinceId] < 0) return null;
+
+            var path = new List<int>(_provinces.Length);
+            for (int step = destinationProvinceId; step != originProvinceId; step = previous[step])
+            {
+                path.Add(step);
+            }
+
+            path.Add(originProvinceId);
+            path.Reverse();
+            return path;
         }
 
         private int IndexOfPlayer(int playerId)

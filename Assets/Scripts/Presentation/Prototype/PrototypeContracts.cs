@@ -24,7 +24,11 @@ namespace Presentation.Prototype
         NoRebellionCell,
         NothingToPurge,
         InvalidBattleTarget,
-        InvalidRulesetShift
+        InvalidRulesetShift,
+        NoTradingPost,
+        NoTrader,
+        NoTradeRoute,
+        InvalidBuyoutTarget
     }
 
     /// <summary>
@@ -79,6 +83,7 @@ namespace Presentation.Prototype
 
         PlayerProfile EvaluatePlayerTurnState(PlayerProfile player, int controlledProvinces);
         int CalculateRevenue(FactionType faction, int controlledProvinces);
+        int CalculateUpkeepVictoryPoints(FactionType faction, UpkeepState state);
 
         /// <summary>One side of a contested roll such as Divine Conversion: the sum of 3d4.</summary>
         int RollContest();
@@ -93,6 +98,7 @@ namespace Presentation.Prototype
     {
         public const int NeutralOwner = -1;
         public const int NoChurch = -1;
+        public const int NoTradingPost = -1;
 
         public int Id { get; }
         public string Name { get; }
@@ -107,7 +113,11 @@ namespace Presentation.Prototype
         public ReligiousPresenceToken PresenceToken { get; }
         public RebellionCell RebellionCell { get; }
 
+        /// <summary>Guild player whose Trading Post stands here, or <see cref="NoTradingPost"/>.</summary>
+        public int TradingPostOwnerId { get; }
+
         public bool HasChurch => ChurchOwnerId != NoChurch;
+        public bool HasTradingPost => TradingPostOwnerId != NoTradingPost;
 
         public ProvinceState(
             int id,
@@ -118,7 +128,8 @@ namespace Presentation.Prototype
             IReadOnlyList<UnitInstance> units,
             int churchOwnerId = NoChurch,
             ReligiousPresenceToken presenceToken = null,
-            RebellionCell rebellionCell = null)
+            RebellionCell rebellionCell = null,
+            int tradingPostOwnerId = NoTradingPost)
         {
             Id = id;
             Name = name;
@@ -129,22 +140,32 @@ namespace Presentation.Prototype
             ChurchOwnerId = churchOwnerId;
             PresenceToken = presenceToken;
             RebellionCell = rebellionCell;
+            TradingPostOwnerId = tradingPostOwnerId;
         }
 
         public ProvinceState WithOccupation(int ownerId, IReadOnlyList<UnitInstance> units) =>
-            new(Id, Name, HasFort, Neighbours, ownerId, units, ChurchOwnerId, PresenceToken, RebellionCell);
+            new(Id, Name, HasFort, Neighbours, ownerId, units, ChurchOwnerId, PresenceToken, RebellionCell,
+                TradingPostOwnerId);
 
         public ProvinceState WithUnits(IReadOnlyList<UnitInstance> units) =>
-            new(Id, Name, HasFort, Neighbours, OwnerId, units, ChurchOwnerId, PresenceToken, RebellionCell);
+            new(Id, Name, HasFort, Neighbours, OwnerId, units, ChurchOwnerId, PresenceToken, RebellionCell,
+                TradingPostOwnerId);
 
         public ProvinceState WithChurch(int churchOwnerId) =>
-            new(Id, Name, HasFort, Neighbours, OwnerId, Units, churchOwnerId, PresenceToken, RebellionCell);
+            new(Id, Name, HasFort, Neighbours, OwnerId, Units, churchOwnerId, PresenceToken, RebellionCell,
+                TradingPostOwnerId);
 
         public ProvinceState WithPresence(ReligiousPresenceToken presenceToken) =>
-            new(Id, Name, HasFort, Neighbours, OwnerId, Units, ChurchOwnerId, presenceToken, RebellionCell);
+            new(Id, Name, HasFort, Neighbours, OwnerId, Units, ChurchOwnerId, presenceToken, RebellionCell,
+                TradingPostOwnerId);
 
         public ProvinceState WithRebellionCell(RebellionCell rebellionCell) =>
-            new(Id, Name, HasFort, Neighbours, OwnerId, Units, ChurchOwnerId, PresenceToken, rebellionCell);
+            new(Id, Name, HasFort, Neighbours, OwnerId, Units, ChurchOwnerId, PresenceToken, rebellionCell,
+                TradingPostOwnerId);
+
+        public ProvinceState WithTradingPost(int tradingPostOwnerId) =>
+            new(Id, Name, HasFort, Neighbours, OwnerId, Units, ChurchOwnerId, PresenceToken, RebellionCell,
+                tradingPostOwnerId);
 
         public bool IsAdjacentTo(int provinceId)
         {
