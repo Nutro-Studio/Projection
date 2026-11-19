@@ -23,8 +23,31 @@ namespace Core.Crisis
         FactionType NewFaction,
         bool IsCrisis,
         bool IsAscension,
-        bool IsVoluntary
+        bool IsVoluntary,
+        int FortificationsLost = 0,
+        int ChurchesLost = 0
     );
+
+    /// <summary>
+    /// Asset losses an archetype pays when it voluntarily leaves its ruleset (Transformation Matrix).
+    /// Each value is the share lost; losses round down.
+    /// </summary>
+    public record ShiftPenalty(
+        double MilitaryUnitLoss = 0,
+        double MissionaryLoss = 0,
+        double FortificationLoss = 0,
+        double ChurchLoss = 0,
+        double TreasuryLoss = 0
+    )
+    {
+        public static readonly ShiftPenalty None = new();
+    }
+
+    /// <summary>Board structures a player holds when a voluntary shift is priced.</summary>
+    public record ShiftHoldings(int Fortifications, int Churches)
+    {
+        public static readonly ShiftHoldings None = new(0, 0);
+    }
 
     public interface IFactionRuleset
     {
@@ -32,6 +55,7 @@ namespace Core.Crisis
         bool IsLanded { get; }
         bool ReceivesFortificationBonus { get; }
         int CalculateUpkeepRevenue(int controlledProvinces);
+        ShiftPenalty VoluntaryShiftPenalty { get; }
     }
 
     public interface ICrisisDirector
@@ -39,11 +63,13 @@ namespace Core.Crisis
         bool CanTriggerCrisis(PlayerProfile player, int controlledProvinces);
         bool CanTriggerAscension(PlayerProfile player, int controlledProvinces);
         bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction, int controlledProvinces);
+        bool CanCapitulate(PlayerProfile player);
         bool CheckVictory(PlayerProfile player);
 
         CrisisShiftResult ExecuteForcedCrisis(PlayerProfile player);
+        CrisisShiftResult ExecuteCapitulation(PlayerProfile player);
         CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction);
-        CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction);
+        CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction, ShiftHoldings holdings);
 
         event Action<CrisisShiftResult> OnRulesetShifted;
         event Action<PlayerProfile> OnVictoryAchieved;

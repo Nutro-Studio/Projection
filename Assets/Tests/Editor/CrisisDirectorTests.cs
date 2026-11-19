@@ -60,8 +60,107 @@ namespace Tests.Editor
             Assert.AreEqual(FactionType.Guerrillas, result.UpdatedProfile.Faction);
             Assert.AreEqual(1, result.UpdatedProfile.Units[0].OwnerPlayerId);
             Assert.AreEqual(FactionType.Zealots, result.UpdatedProfile.Units[0].OriginalFaction);
+            Assert.AreEqual(1, result.UpdatedProfile.Units.Count, "Missionaries do not join the insurgency.");
             Assert.IsTrue(result.IsCrisis);
+            Assert.IsFalse(result.IsVoluntary);
         }
+
+        [Test]
+        public void CanCapitulate_IsTrueOnlyForLandedFactions()
+        {
+            Assert.IsTrue(_director.CanCapitulate(Player(FactionType.Militants)));
+            Assert.IsTrue(_director.CanCapitulate(Player(FactionType.Zealots)));
+            Assert.IsFalse(_director.CanCapitulate(Player(FactionType.Guilds)));
+            Assert.IsFalse(_director.CanCapitulate(Player(FactionType.Guerrillas)));
+        }
+
+        [Test]
+        public void ExecuteCapitulation_CollapsesLikeCrisis_AndIsMarkedVoluntary()
+        {
+            var units = new List<UnitInstance>
+            {
+                new(1, 1, FactionType.Militants, UnitType.RegularMilitary, 1, 1),
+                new(2, 1, FactionType.Militants, UnitType.RegularMilitary, 1, 1)
+            };
+            var player = new PlayerProfile(1, FactionType.Militants, Gold: 9, VictoryPoints: 31, units);
+
+            var result = _director.ExecuteCapitulation(player);
+
+            // 31 * 0.8 = 24.8 -> 24 VP
+            Assert.AreEqual(24, result.UpdatedProfile.VictoryPoints);
+            Assert.AreEqual(0, result.UpdatedProfile.Gold);
+            Assert.AreEqual(FactionType.Guerrillas, result.UpdatedProfile.Faction);
+            Assert.AreEqual(2, result.UpdatedProfile.Units.Count);
+            Assert.IsTrue(result.IsCrisis);
+            Assert.IsTrue(result.IsVoluntary);
+        }
+
+        [Test]
+        public void ExecuteCapitulation_Throws_ForNonLandedFaction()
+        {
+            Assert.Throws<System.InvalidOperationException>(() =>
+                _director.ExecuteCapitulation(Player(FactionType.Guilds)));
+        }
+
+        [Test]
+        public void ExecuteVoluntaryShift_FromMilitants_LosesHalfTroopsAndThirtyPercentOfForts()
+        {
+            var units = new List<UnitInstance>
+            {
+                new(1, 1, FactionType.Militants, UnitType.RegularMilitary, 1, 1),
+                new(2, 1, FactionType.Militants, UnitType.RegularMilitary, 1, 1),
+                new(3, 1, FactionType.Militants, UnitType.RegularMilitary, 1, 1)
+            };
+            var player = new PlayerProfile(1, FactionType.Militants, Gold: 10, VictoryPoints: 25, units);
+
+            var result = _director.ExecuteVoluntaryShift(player, FactionType.Zealots, new ShiftHoldings(7, 0));
+
+            // 3 troops lose floor(1.5) = 1; 7 forts lose floor(2.1) = 2
+            Assert.AreEqual(2, result.UpdatedProfile.Units.Count);
+            Assert.AreEqual(1, result.UpdatedProfile.Units[0].Id);
+            Assert.AreEqual(2, result.FortificationsLost);
+            Assert.AreEqual(0, result.ChurchesLost);
+            Assert.AreEqual(10, result.UpdatedProfile.Gold);
+            Assert.AreEqual(20, result.UpdatedProfile.VictoryPoints);
+            Assert.AreEqual(FactionType.Zealots, result.UpdatedProfile.Faction);
+            Assert.IsTrue(result.IsVoluntary);
+        }
+
+        [Test]
+        public void ExecuteVoluntaryShift_FromZealots_LosesAllMissionariesAndHalfTheChurches()
+        {
+            var units = new List<UnitInstance>
+            {
+                new(1, 1, FactionType.Zealots, UnitType.Missionary, 1, 1),
+                new(2, 1, FactionType.Zealots, UnitType.RegularMilitary, 1, 1),
+                new(3, 1, FactionType.Zealots, UnitType.Missionary, 1, 1)
+            };
+            var player = new PlayerProfile(1, FactionType.Zealots, Gold: 10, VictoryPoints: 10, units);
+
+            var result = _director.ExecuteVoluntaryShift(player, FactionType.Guilds, new ShiftHoldings(0, 5));
+
+            Assert.AreEqual(1, result.UpdatedProfile.Units.Count);
+            Assert.AreEqual(UnitType.RegularMilitary, result.UpdatedProfile.Units[0].Type);
+            Assert.AreEqual(2, result.ChurchesLost);
+            Assert.AreEqual(0, result.FortificationsLost);
+            Assert.AreEqual(10, result.UpdatedProfile.Gold);
+        }
+
+        [Test]
+        public void ExecuteVoluntaryShift_FromGuilds_LosesHalfTheTreasury()
+        {
+            var player = new PlayerProfile(1, FactionType.Guilds, Gold: 15, VictoryPoints: 10,
+                new List<UnitInstance>());
+
+            var result = _director.ExecuteVoluntaryShift(player, FactionType.Militants, ShiftHoldings.None);
+
+            // 15 Gold loses floor(7.5) = 7
+            Assert.AreEqual(8, result.UpdatedProfile.Gold);
+            Assert.AreEqual(8, result.UpdatedProfile.VictoryPoints);
+        }
+
+        private static PlayerProfile Player(FactionType faction) =>
+            new(1, faction, Gold: 10, VictoryPoints: 10, new List<UnitInstance>());
 
         [Test]
         public void ExecuteAscension_AppliesTenPercentBonusAndTransitionsToTargetFaction()

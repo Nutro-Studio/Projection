@@ -9,6 +9,7 @@ namespace Core.Crisis
         public const int VictoryPointsThreshold = 50;
         public const int CrisisProvinceThreshold = 3;
         public const int AscensionProvinceThreshold = 5;
+        public const double ShiftVictoryPointsMultiplier = 0.80;
 
         private readonly IReadOnlyDictionary<FactionType, IFactionRuleset> _rulesets;
 
@@ -62,32 +63,29 @@ namespace Core.Crisis
             };
         }
 
+        /// <summary>
+        /// Any landed faction may give up its state during its turn and collapse into Guerrillas.
+        /// </summary>
+        public bool CanCapitulate(PlayerProfile player)
+        {
+            if (player == null) throw new ArgumentNullException(nameof(player));
+            return _rulesets.TryGetValue(player.Faction, out var ruleset) && ruleset.IsLanded;
+        }
+
         public CrisisShiftResult ExecuteForcedCrisis(PlayerProfile player)
         {
             if (player == null) throw new ArgumentNullException(nameof(player));
+            return Collapse(player, isVoluntary: false);
+        }
 
-            int penalizedVp = (int)Math.Floor(player.VictoryPoints * 0.80);
-            var retainedUnits = AssignUnitsToOwner(player.Units, player.PlayerId);
-
-            var updatedProfile = player with
+        public CrisisShiftResult ExecuteCapitulation(PlayerProfile player)
+        {
+            if (!CanCapitulate(player))
             {
-                Faction = FactionType.Guerrillas,
-                Gold = 0,
-                VictoryPoints = Math.Max(0, penalizedVp),
-                Units = retainedUnits
-            };
+                throw new InvalidOperationException("Only a landed faction can capitulate.");
+            }
 
-            var shiftResult = new CrisisShiftResult(
-                UpdatedProfile: updatedProfile,
-                PreviousFaction: player.Faction,
-                NewFaction: FactionType.Guerrillas,
-                IsCrisis: true,
-                IsAscension: false,
-                IsVoluntary: false
-            );
-
-            OnRulesetShifted?.Invoke(shiftResult);
-            return shiftResult;
+            return Collapse(player, isVoluntary: true);
         }
 
         public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction)
@@ -127,42 +125,43 @@ namespace Core.Crisis
             return shiftResult;
         }
 
-        public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction)
+        /// <summary>
+        /// Applies the leaving archetype's <see cref="ShiftPenalty"/> and -20% VP.
+        /// The earliest units in <see cref="PlayerProfile.Units"/> are the ones kept.
+        /// </summary>
+        public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction,
+            ShiftHoldings holdings)
         {
             if (player == null) throw new ArgumentNullException(nameof(player));
+            if (holdings == null) throw new ArgumentNullException(nameof(holdings));
 
-            int penalizedVp = (int)Math.Floor(player.VictoryPoints * 0.80);
-            int gold = player.Gold;
+            var penalty = _rulesets[player.Faction].VoluntaryShiftPenalty;
+            int militaryToKeep = Remaining(CountUnits(player.Units, UnitType.RegularMilitary), penalty.MilitaryUnitLoss);
+            int missionariesToKeep = Remaining(CountUnits(player.Units, UnitType.Missionary), penalty.MissionaryLoss);
 
-            // Guild shift penalty: lose 50% treasury
-            if (player.Faction == FactionType.Guilds)
+            var finalUnits = new List<UnitInstance>(player.Units.Count);
+            for (int i = 0; i < player.Units.Count; i++)
             {
-                gold = (int)Math.Floor(gold * 0.50);
-            }
-
-            // Militant shift penalty: lose 50% military units
-            IReadOnlyList<UnitInstance> finalUnits;
-            if (player.Faction == FactionType.Militants)
-            {
-                int remainingCount = (int)Math.Ceiling(player.Units.Count * 0.50);
-                var surviving = new List<UnitInstance>(remainingCount);
-                for (int i = 0; i < remainingCount; i++)
+                var unit = player.Units[i];
+                if (unit.Type == UnitType.RegularMilitary)
                 {
-                    surviving.Add(player.Units[i] with { OwnerPlayerId = player.PlayerId });
+                    if (militaryToKeep == 0) continue;
+                    militaryToKeep--;
+                }
+                else if (unit.Type == UnitType.Missionary)
+                {
+                    if (missionariesToKeep == 0) continue;
+                    missionariesToKeep--;
                 }
 
-                finalUnits = surviving;
-            }
-            else
-            {
-                finalUnits = AssignUnitsToOwner(player.Units, player.PlayerId);
+                finalUnits.Add(unit with { OwnerPlayerId = player.PlayerId });
             }
 
             var updatedProfile = player with
             {
                 Faction = targetFaction,
-                Gold = gold,
-                VictoryPoints = Math.Max(0, penalizedVp),
+                Gold = Remaining(player.Gold, penalty.TreasuryLoss),
+                VictoryPoints = PenalizedVictoryPoints(player),
                 Units = finalUnits
             };
 
@@ -172,11 +171,70 @@ namespace Core.Crisis
                 NewFaction: targetFaction,
                 IsCrisis: false,
                 IsAscension: false,
-                IsVoluntary: true
+                IsVoluntary: true,
+                FortificationsLost: Lost(holdings.Fortifications, penalty.FortificationLoss),
+                ChurchesLost: Lost(holdings.Churches, penalty.ChurchLoss)
             );
 
             OnRulesetShifted?.Invoke(shiftResult);
             return shiftResult;
+        }
+
+        /// <summary>
+        /// Crisis or capitulation: the treasury is wiped, VP drop by 20% and the remaining troops become
+        /// Insurgents. Missionaries and Traders have no place in an insurgency and leave the board.
+        /// </summary>
+        private CrisisShiftResult Collapse(PlayerProfile player, bool isVoluntary)
+        {
+            var insurgents = new List<UnitInstance>(player.Units.Count);
+            for (int i = 0; i < player.Units.Count; i++)
+            {
+                if (player.Units[i].Type == UnitType.RegularMilitary)
+                {
+                    insurgents.Add(player.Units[i] with { OwnerPlayerId = player.PlayerId });
+                }
+            }
+
+            var updatedProfile = player with
+            {
+                Faction = FactionType.Guerrillas,
+                Gold = 0,
+                VictoryPoints = PenalizedVictoryPoints(player),
+                Units = insurgents
+            };
+
+            var shiftResult = new CrisisShiftResult(
+                UpdatedProfile: updatedProfile,
+                PreviousFaction: player.Faction,
+                NewFaction: FactionType.Guerrillas,
+                IsCrisis: true,
+                IsAscension: false,
+                IsVoluntary: isVoluntary
+            );
+
+            OnRulesetShifted?.Invoke(shiftResult);
+            return shiftResult;
+        }
+
+        private static int PenalizedVictoryPoints(PlayerProfile player) =>
+            Math.Max(0, (int)Math.Floor(player.VictoryPoints * ShiftVictoryPointsMultiplier));
+
+        private static int Lost(int count, double share) => (int)Math.Floor(count * share);
+
+        private static int Remaining(int count, double share) => count - Lost(count, share);
+
+        private static int CountUnits(IReadOnlyList<UnitInstance> units, UnitType type)
+        {
+            int count = 0;
+            for (int i = 0; i < units.Count; i++)
+            {
+                if (units[i].Type == type)
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         private static List<UnitInstance> AssignUnitsToOwner(IReadOnlyList<UnitInstance> units, int ownerPlayerId)

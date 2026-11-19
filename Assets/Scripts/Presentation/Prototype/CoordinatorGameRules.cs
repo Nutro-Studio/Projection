@@ -21,8 +21,14 @@ namespace Presentation.Prototype
         public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
             _coordinator.ExecuteAscension(player, targetLandedFaction);
 
-        public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
-            _coordinator.ExecuteVoluntaryShift(player, targetFaction);
+        public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction,
+            ShiftHoldings holdings) =>
+            _coordinator.ExecuteVoluntaryShift(player, targetFaction, holdings);
+
+        public bool CanCapitulate(PlayerProfile player) => _coordinator.CanCapitulate(player);
+
+        public CrisisShiftResult ExecuteCapitulation(PlayerProfile player) =>
+            _coordinator.ExecuteCapitulation(player);
 
         public CombatResult ResolveSkirmish(
             IReadOnlyList<UnitInstance> attackers,

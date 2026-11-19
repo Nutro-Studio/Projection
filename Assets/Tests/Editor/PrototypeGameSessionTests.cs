@@ -89,8 +89,14 @@ namespace Tests.Editor
             public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
                 _director.ExecuteAscension(player, targetLandedFaction);
 
-            public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
-                _director.ExecuteVoluntaryShift(player, targetFaction);
+            public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction,
+                ShiftHoldings holdings) =>
+                _director.ExecuteVoluntaryShift(player, targetFaction, holdings);
+
+            public bool CanCapitulate(PlayerProfile player) => _director.CanCapitulate(player);
+
+            public CrisisShiftResult ExecuteCapitulation(PlayerProfile player) =>
+                _director.ExecuteCapitulation(player);
         }
 
         private ScriptedDiceRoller _dice;
@@ -444,6 +450,112 @@ namespace Tests.Editor
             Assert.AreEqual(8, player.VictoryPoints);
             Assert.AreEqual(Attacker, session.Provinces[AttackerHome].Units[0].OwnerPlayerId);
             Assert.AreEqual(FactionType.Militants, session.Provinces[AttackerHome].Units[0].OriginalFaction);
+            Assert.AreEqual(Attacker, session.Provinces[AttackerHome].RebellionCell.OwnerId);
+            Assert.IsFalse(session.Provinces[AttackerHome].RebellionCell.IsOpenRebellion);
+        }
+
+        [Test]
+        public void Capitulate_CollapsesLandedFactionIntoGuerrillas_AndSpawnsUndercoverCell()
+        {
+            var session = CreateSession(attackerVictoryPoints: 10);
+
+            Assert.IsTrue(session.CanCapitulate());
+            Assert.AreEqual(CommandResult.Ok, session.Capitulate());
+
+            var player = session.GetPlayer(Attacker);
+            Assert.AreEqual(FactionType.Guerrillas, player.Faction);
+            Assert.AreEqual(0, player.Gold);
+            Assert.AreEqual(8, player.VictoryPoints);
+            Assert.AreEqual(PlayerProfile.BaseActionPoints - 1, player.ActionPoints);
+            Assert.AreEqual(1, session.GetUnitsForPlayer(AttackerHome, Attacker, UnitType.RegularMilitary).Count);
+            Assert.AreEqual(Attacker, session.Provinces[AttackerHome].RebellionCell.OwnerId);
+            Assert.IsFalse(session.Provinces[AttackerHome].RebellionCell.IsOpenRebellion);
+            Assert.AreEqual(Attacker, session.CurrentPlayer.PlayerId, "Capitulating does not end the turn.");
+        }
+
+        [Test]
+        public void Capitulate_DisbandsMissionaries_AndKeepsTroopsAsInsurgents()
+        {
+            var session = CreateSession(attackerFaction: FactionType.Zealots);
+            session.BuyMissionary(AttackerHome);
+
+            Assert.AreEqual(CommandResult.Ok, session.Capitulate());
+
+            Assert.AreEqual(0, session.GetUnitsForPlayer(AttackerHome, Attacker, UnitType.Missionary).Count);
+            Assert.AreEqual(1, session.GetUnitsForPlayer(AttackerHome, Attacker, UnitType.RegularMilitary).Count);
+        }
+
+        [Test]
+        public void Capitulate_IsRejected_ForNonLandedFactionAndWithoutActionPoints()
+        {
+            var guerrillas = CreateSession(attackerFaction: FactionType.Guerrillas);
+            Assert.IsFalse(guerrillas.CanCapitulate());
+            Assert.AreEqual(CommandResult.CannotCapitulate, guerrillas.Capitulate());
+
+            var guilds = CreateSession(attackerFaction: FactionType.Guilds);
+            Assert.AreEqual(CommandResult.CannotCapitulate, guilds.Capitulate());
+
+            var exhausted = CreateSession();
+            for (int i = 0; i < PlayerProfile.BaseActionPoints - 1; i++)
+            {
+                exhausted.BuyUnit(AttackerHome);
+            }
+
+            MoveAllMovable(exhausted, AttackerHome, NeutralLand);
+
+            Assert.IsFalse(exhausted.CanCapitulate());
+            Assert.AreEqual(CommandResult.NoActionPoints, exhausted.Capitulate());
+        }
+
+        [Test]
+        public void VoluntaryShift_FromZealots_LosesAllMissionariesAndHalfTheChurches()
+        {
+            var session = CreateSession(attackerFaction: FactionType.Zealots, defenderChurchOwner: Attacker);
+            session.BuildChurch(AttackerHome);
+            session.BuyMissionary(AttackerHome);
+
+            Assert.AreEqual(CommandResult.Ok, session.VoluntaryShift(FactionType.Militants));
+
+            Assert.AreEqual(FactionType.Militants, session.GetPlayer(Attacker).Faction);
+            Assert.AreEqual(0, session.GetUnitsForPlayer(AttackerHome, Attacker, UnitType.Missionary).Count);
+            Assert.AreEqual(1, session.GetUnitsForPlayer(AttackerHome, Attacker, UnitType.RegularMilitary).Count);
+            Assert.IsFalse(session.Provinces[AttackerHome].HasChurch, "Lowest province id loses its Church first.");
+            Assert.AreEqual(Attacker, session.Provinces[DefenderHome].ChurchOwnerId);
+        }
+
+        [Test]
+        public void VoluntaryShift_FromMilitants_LosesHalfTheTroopsAndThirtyPercentOfForts()
+        {
+            var players = new[]
+            {
+                new PlayerProfile(Attacker, FactionType.Militants, PrototypeGameSession.StartingGold, 10,
+                    new List<UnitInstance>()),
+                new PlayerProfile(Defender, FactionType.Zealots, PrototypeGameSession.StartingGold, 0,
+                    new List<UnitInstance>())
+            };
+            var provinces = new ProvinceState[4];
+            for (int i = 0; i < provinces.Length; i++)
+            {
+                provinces[i] = new ProvinceState(i, $"F{i}", true, new[] { (i + 1) % provinces.Length }, Attacker,
+                    new List<UnitInstance> { new(i, Attacker, FactionType.Militants, UnitType.RegularMilitary, 1, 1) });
+            }
+
+            var session = new PrototypeGameSession(new CoreRules(_dice), players, provinces, false);
+
+            Assert.AreEqual(CommandResult.Ok, session.VoluntaryShift(FactionType.Zealots));
+
+            int troops = 0;
+            int forts = 0;
+            for (int i = 0; i < session.Provinces.Count; i++)
+            {
+                troops += session.Provinces[i].Units.Count;
+                if (session.Provinces[i].HasFort) forts++;
+            }
+
+            Assert.AreEqual(2, troops);
+            Assert.AreEqual(3, forts, "floor(4 * 30%) = 1 Fortification razed.");
+            Assert.IsFalse(session.Provinces[0].HasFort);
+            Assert.AreEqual(8, session.GetPlayer(Attacker).VictoryPoints);
         }
 
         [Test]

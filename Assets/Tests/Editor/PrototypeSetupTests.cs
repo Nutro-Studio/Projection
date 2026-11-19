@@ -35,7 +35,12 @@ namespace Tests.Editor
             public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
                 throw new System.NotSupportedException();
 
-            public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
+            public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction,
+                ShiftHoldings holdings) => throw new System.NotSupportedException();
+
+            public bool CanCapitulate(PlayerProfile player) => false;
+
+            public CrisisShiftResult ExecuteCapitulation(PlayerProfile player) =>
                 throw new System.NotSupportedException();
         }
 

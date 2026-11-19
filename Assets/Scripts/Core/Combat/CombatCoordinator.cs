@@ -19,8 +19,14 @@ namespace Core.Combat
         public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
             _crisisDirector.ExecuteAscension(player, targetLandedFaction);
 
-        public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
-            _crisisDirector.ExecuteVoluntaryShift(player, targetFaction);
+        public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction,
+            ShiftHoldings holdings) =>
+            _crisisDirector.ExecuteVoluntaryShift(player, targetFaction, holdings);
+
+        public bool CanCapitulate(PlayerProfile player) => _crisisDirector.CanCapitulate(player);
+
+        public CrisisShiftResult ExecuteCapitulation(PlayerProfile player) =>
+            _crisisDirector.ExecuteCapitulation(player);
 
         private ICombatService _combatService;
         private ICrisisDirector _crisisDirector;

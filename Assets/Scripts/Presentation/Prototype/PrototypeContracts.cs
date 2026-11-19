@@ -24,7 +24,8 @@ namespace Presentation.Prototype
         NoRebellionCell,
         NothingToPurge,
         InvalidBattleTarget,
-        InvalidRulesetShift
+        InvalidRulesetShift,
+        CannotCapitulate
     }
 
     /// <summary>
@@ -86,7 +87,11 @@ namespace Presentation.Prototype
         bool CanTriggerAscension(PlayerProfile player, int controlledProvinces);
         bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction, int controlledProvinces);
         CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction);
-        CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction);
+        CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction,
+            ShiftHoldings holdings);
+
+        bool CanCapitulate(PlayerProfile player);
+        CrisisShiftResult ExecuteCapitulation(PlayerProfile player);
     }
 
     public sealed class ProvinceState
@@ -136,6 +141,9 @@ namespace Presentation.Prototype
 
         public ProvinceState WithUnits(IReadOnlyList<UnitInstance> units) =>
             new(Id, Name, HasFort, Neighbours, OwnerId, units, ChurchOwnerId, PresenceToken, RebellionCell);
+
+        public ProvinceState WithFort(bool hasFort) =>
+            new(Id, Name, hasFort, Neighbours, OwnerId, Units, ChurchOwnerId, PresenceToken, RebellionCell);
 
         public ProvinceState WithChurch(int churchOwnerId) =>
             new(Id, Name, HasFort, Neighbours, OwnerId, Units, churchOwnerId, PresenceToken, RebellionCell);

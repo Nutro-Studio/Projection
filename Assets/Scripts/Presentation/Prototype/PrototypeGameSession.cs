@@ -530,6 +530,10 @@ namespace Presentation.Prototype
                 : Math.Max(controlled, CrisisDirector.CrisisProvinceThreshold);
             var updated = _rules.EvaluatePlayerTurnState(beforeRules, provincesForRules);
             _players[_currentPlayerIndex] = updated;
+            if (updated.Faction != beforeRules.Faction)
+            {
+                ApplyCollapseToBoard(updated);
+            }
 
             IsGameOver = updated.VictoryPoints >= CrisisDirector.VictoryPointsThreshold;
             if (!IsGameOver)
@@ -956,8 +960,29 @@ namespace Presentation.Prototype
             }
 
             var withUnits = player with { Units = CollectUnits(player.PlayerId) };
-            var shift = _rules.ExecuteVoluntaryShift(withUnits, targetFaction);
+            var shift = _rules.ExecuteVoluntaryShift(withUnits, targetFaction, CountHoldings(player.PlayerId));
             ApplyShiftResult(shift);
+            return CommandResult.Ok;
+        }
+
+        public bool CanCapitulate()
+        {
+            if (IsGameOver || CurrentPlayer.ActionPoints <= 0) return false;
+            return _rules.CanCapitulate(CurrentPlayer);
+        }
+
+        /// <summary>
+        /// Voluntary collapse: the current landed faction gives up its state and becomes Guerrillas
+        /// with the same consequences as a forced crisis.
+        /// </summary>
+        public CommandResult Capitulate()
+        {
+            if (IsGameOver) return CommandResult.GameOver;
+            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
+            if (!_rules.CanCapitulate(CurrentPlayer)) return CommandResult.CannotCapitulate;
+
+            var withUnits = CurrentPlayer with { Units = CollectUnits(CurrentPlayer.PlayerId) };
+            ApplyShiftResult(_rules.ExecuteCapitulation(withUnits));
             return CommandResult.Ok;
         }
 
@@ -986,33 +1011,16 @@ namespace Presentation.Prototype
                 ActionPoints = CurrentPlayer.ActionPoints - 1
             };
 
-            // If Militant voluntary shift pruned units, sync board garrisons to match RetainedUnits
-            if (shift.PreviousFaction == FactionType.Militants && shift.IsVoluntary)
+            int playerId = shift.UpdatedProfile.PlayerId;
+            if (shift.IsCrisis)
             {
-                var survivingIds = new HashSet<int>();
-                for (int i = 0; i < shift.UpdatedProfile.Units.Count; i++)
-                {
-                    survivingIds.Add(shift.UpdatedProfile.Units[i].Id);
-                }
-
-                for (int p = 0; p < _provinces.Length; p++)
-                {
-                    var province = _provinces[p];
-                    var kept = new List<UnitInstance>(province.Units.Count);
-                    for (int u = 0; u < province.Units.Count; u++)
-                    {
-                        var unit = province.Units[u];
-                        if (unit.OwnerPlayerId != shift.UpdatedProfile.PlayerId || survivingIds.Contains(unit.Id))
-                        {
-                            kept.Add(unit);
-                        }
-                    }
-
-                    if (kept.Count != province.Units.Count)
-                    {
-                        SetProvince(province.WithUnits(kept));
-                    }
-                }
+                ApplyCollapseToBoard(shift.UpdatedProfile);
+            }
+            else
+            {
+                SyncBoardUnits(shift.UpdatedProfile);
+                RazeFortifications(playerId, shift.FortificationsLost);
+                RazeChurches(playerId, shift.ChurchesLost);
             }
 
             if (_players[_currentPlayerIndex].VictoryPoints >= CrisisDirector.VictoryPointsThreshold)
@@ -1021,6 +1029,111 @@ namespace Presentation.Prototype
             }
 
             StateChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// A collapsed state goes underground: its Insurgents stay where they stand and each province they hold
+        /// out in gets an undercover Rebellion cell, unless one is already there.
+        /// </summary>
+        private void ApplyCollapseToBoard(PlayerProfile collapsed)
+        {
+            SyncBoardUnits(collapsed);
+
+            for (int p = 0; p < _provinces.Length; p++)
+            {
+                var province = _provinces[p];
+                if (province.RebellionCell != null) continue;
+
+                for (int u = 0; u < province.Units.Count; u++)
+                {
+                    if (province.Units[u].OwnerPlayerId == collapsed.PlayerId)
+                    {
+                        SetProvince(province.WithRebellionCell(new RebellionCell(collapsed.PlayerId, false)));
+                        break;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Makes the board match the units a ruleset shift left the player: units it dropped leave their
+        /// province, units it kept take their updated record.
+        /// </summary>
+        private void SyncBoardUnits(PlayerProfile profile)
+        {
+            var retained = new Dictionary<int, UnitInstance>(profile.Units.Count);
+            for (int i = 0; i < profile.Units.Count; i++)
+            {
+                retained[profile.Units[i].Id] = profile.Units[i];
+            }
+
+            for (int p = 0; p < _provinces.Length; p++)
+            {
+                var province = _provinces[p];
+                var synced = new List<UnitInstance>(province.Units.Count);
+                bool changed = false;
+                for (int u = 0; u < province.Units.Count; u++)
+                {
+                    var unit = province.Units[u];
+                    if (unit.OwnerPlayerId != profile.PlayerId)
+                    {
+                        synced.Add(unit);
+                    }
+                    else if (retained.TryGetValue(unit.Id, out var kept))
+                    {
+                        synced.Add(kept);
+                        changed |= kept != unit;
+                    }
+                    else
+                    {
+                        changed = true;
+                    }
+                }
+
+                if (changed)
+                {
+                    SetProvince(province.WithUnits(synced));
+                }
+            }
+        }
+
+        private ShiftHoldings CountHoldings(int playerId)
+        {
+            int fortifications = 0;
+            int churches = 0;
+            for (int i = 0; i < _provinces.Length; i++)
+            {
+                if (_provinces[i].HasFort && _provinces[i].OwnerId == playerId) fortifications++;
+                if (_provinces[i].ChurchOwnerId == playerId) churches++;
+            }
+
+            return new ShiftHoldings(fortifications, churches);
+        }
+
+        /// <summary>Razes <paramref name="count"/> of the player's Fortifications, lowest province id first.</summary>
+        private void RazeFortifications(int playerId, int count)
+        {
+            for (int i = 0; i < _provinces.Length && count > 0; i++)
+            {
+                if (_provinces[i].HasFort && _provinces[i].OwnerId == playerId)
+                {
+                    SetProvince(_provinces[i].WithFort(false));
+                    count--;
+                }
+            }
+        }
+
+        /// <summary>Razes <paramref name="count"/> of the player's Churches, lowest province id first.</summary>
+        private void RazeChurches(int playerId, int count)
+        {
+            for (int i = 0; i < _provinces.Length && count > 0; i++)
+            {
+                if (_provinces[i].ChurchOwnerId == playerId)
+                {
+                    SetProvince(_provinces[i].WithChurch(ProvinceState.NoChurch));
+                    count--;
+                }
+            }
         }
     }
 }
