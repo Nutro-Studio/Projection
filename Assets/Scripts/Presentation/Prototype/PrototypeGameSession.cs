@@ -532,7 +532,7 @@ namespace Presentation.Prototype
             _players[_currentPlayerIndex] = updated;
             if (updated.Faction != beforeRules.Faction)
             {
-                ApplyCollapseToBoard(updated);
+                SyncBoardUnits(updated);
             }
 
             IsGameOver = updated.VictoryPoints >= CrisisDirector.VictoryPointsThreshold;
@@ -1012,16 +1012,9 @@ namespace Presentation.Prototype
             };
 
             int playerId = shift.UpdatedProfile.PlayerId;
-            if (shift.IsCrisis)
-            {
-                ApplyCollapseToBoard(shift.UpdatedProfile);
-            }
-            else
-            {
-                SyncBoardUnits(shift.UpdatedProfile);
-                RazeFortifications(playerId, shift.FortificationsLost);
-                RazeChurches(playerId, shift.ChurchesLost);
-            }
+            SyncBoardUnits(shift.UpdatedProfile);
+            RazeFortifications(playerId, shift.FortificationsLost);
+            RazeChurches(playerId, shift.ChurchesLost);
 
             if (_players[_currentPlayerIndex].VictoryPoints >= CrisisDirector.VictoryPointsThreshold)
             {
@@ -1029,30 +1022,6 @@ namespace Presentation.Prototype
             }
 
             StateChanged?.Invoke();
-        }
-
-        /// <summary>
-        /// A collapsed state goes underground: its Insurgents stay where they stand and each province they hold
-        /// out in gets an undercover Rebellion cell, unless one is already there.
-        /// </summary>
-        private void ApplyCollapseToBoard(PlayerProfile collapsed)
-        {
-            SyncBoardUnits(collapsed);
-
-            for (int p = 0; p < _provinces.Length; p++)
-            {
-                var province = _provinces[p];
-                if (province.RebellionCell != null) continue;
-
-                for (int u = 0; u < province.Units.Count; u++)
-                {
-                    if (province.Units[u].OwnerPlayerId == collapsed.PlayerId)
-                    {
-                        SetProvince(province.WithRebellionCell(new RebellionCell(collapsed.PlayerId, false)));
-                        break;
-                    }
-                }
-            }
         }
 
         /// <summary>

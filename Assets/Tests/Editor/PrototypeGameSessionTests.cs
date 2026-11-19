@@ -450,12 +450,10 @@ namespace Tests.Editor
             Assert.AreEqual(8, player.VictoryPoints);
             Assert.AreEqual(Attacker, session.Provinces[AttackerHome].Units[0].OwnerPlayerId);
             Assert.AreEqual(FactionType.Militants, session.Provinces[AttackerHome].Units[0].OriginalFaction);
-            Assert.AreEqual(Attacker, session.Provinces[AttackerHome].RebellionCell.OwnerId);
-            Assert.IsFalse(session.Provinces[AttackerHome].RebellionCell.IsOpenRebellion);
         }
 
         [Test]
-        public void Capitulate_CollapsesLandedFactionIntoGuerrillas_AndSpawnsUndercoverCell()
+        public void Capitulate_CollapsesLandedFactionIntoGuerrillas()
         {
             var session = CreateSession(attackerVictoryPoints: 10);
 
@@ -468,20 +466,19 @@ namespace Tests.Editor
             Assert.AreEqual(8, player.VictoryPoints);
             Assert.AreEqual(PlayerProfile.BaseActionPoints - 1, player.ActionPoints);
             Assert.AreEqual(1, session.GetUnitsForPlayer(AttackerHome, Attacker, UnitType.RegularMilitary).Count);
-            Assert.AreEqual(Attacker, session.Provinces[AttackerHome].RebellionCell.OwnerId);
-            Assert.IsFalse(session.Provinces[AttackerHome].RebellionCell.IsOpenRebellion);
             Assert.AreEqual(Attacker, session.CurrentPlayer.PlayerId, "Capitulating does not end the turn.");
         }
 
         [Test]
-        public void Capitulate_DisbandsMissionaries_AndKeepsTroopsAsInsurgents()
+        public void Capitulate_KeepsEveryUnitOnTheBoardAsInsurgents()
         {
             var session = CreateSession(attackerFaction: FactionType.Zealots);
             session.BuyMissionary(AttackerHome);
 
             Assert.AreEqual(CommandResult.Ok, session.Capitulate());
 
-            Assert.AreEqual(0, session.GetUnitsForPlayer(AttackerHome, Attacker, UnitType.Missionary).Count);
+            Assert.AreEqual(FactionType.Guerrillas, session.GetPlayer(Attacker).Faction);
+            Assert.AreEqual(1, session.GetUnitsForPlayer(AttackerHome, Attacker, UnitType.Missionary).Count);
             Assert.AreEqual(1, session.GetUnitsForPlayer(AttackerHome, Attacker, UnitType.RegularMilitary).Count);
         }
 

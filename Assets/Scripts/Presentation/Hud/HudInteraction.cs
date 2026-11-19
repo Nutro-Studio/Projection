@@ -232,13 +232,6 @@ namespace Presentation.Hud
             Changed?.Invoke();
         }
 
-        public void Capitulate()
-        {
-            Targeting = TargetingMode.None;
-            LastResult = _session.Capitulate();
-            Changed?.Invoke();
-        }
-
         public void Ascend(FactionType targetLandedFaction)
         {
             Targeting = TargetingMode.None;

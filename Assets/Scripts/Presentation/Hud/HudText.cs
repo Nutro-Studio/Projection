@@ -164,8 +164,6 @@ namespace Presentation.Hud
         public static string ShiftButton(FactionType target, bool isAscension) =>
             isAscension ? $"Ascend -> {Faction(target)}" : $"Shift -> {Faction(target)}";
 
-        public static string CapitulateButton() => "Capitulate -> Guerrillas";
-
         public static string Command(CommandResult result) => result switch
         {
             CommandResult.Ok => string.Empty,
@@ -187,7 +185,6 @@ namespace Presentation.Hud
             CommandResult.NothingToPurge => "There is nothing here to purge.",
             CommandResult.InvalidBattleTarget => "Choose a valid enemy force in this province.",
             CommandResult.InvalidRulesetShift => "Ruleset shift requirements are not met.",
-            CommandResult.CannotCapitulate => "Only a landed faction can capitulate.",
             _ => result.ToString()
         };
 
@@ -223,11 +220,6 @@ namespace Presentation.Hud
         {
             string from = Faction(shift.PreviousFaction);
             string to = Faction(shift.NewFaction);
-            if (shift.IsCrisis && shift.IsVoluntary)
-            {
-                return $"CAPITULATION! {from} go underground as {to}. Treasury lost, -20% VP.";
-            }
-
             if (shift.IsCrisis) return $"CRISIS! {from} collapse and become {to}. Treasury lost, -20% VP.";
             if (shift.IsAscension) return $"ASCENSION! {from} rise as {to}. +10% VP.";
 

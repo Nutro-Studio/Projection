@@ -41,11 +41,6 @@ All unit tests are located under:
 | `CanTriggerCrisis_ReturnsFalse_ForNonLandedFaction`                      | Faction Archetypes (§5)        | Non-landed factions (Guerrillas) never trigger landed crisis checks.                                                                        |
 | `ExecuteForcedCrisis_AppliesTwentyPercentVpPenaltyAndZeroesGold`         | Crisis Consequences (§6)       | Treasury wiped to $0\text{ Gold}$, Victory Points reduced by $-20\%$ ($\lfloor\text{VP} \times 0.8\rfloor$), units converted to Guerrillas. |
 | `ExecuteAscension_AppliesTenPercentBonusAndTransitionsToTargetFaction`   | Statehood Ascension (§2, §6)   | Guerrillas with $\ge 5$ provinces transition to target landed state with $+10\%$ VP bonus ($\lfloor\text{VP} \times 1.1\rfloor$).           |
-| `CanCapitulate_IsTrueOnlyForLandedFactions`                              | Capitulation (§6, #15)         | Militants and Zealots may capitulate; Guilds and Guerrillas may not.                                                                        |
-| `ExecuteCapitulation_CollapsesLikeCrisis_AndIsMarkedVoluntary`           | Capitulation (§6, #15)         | Same consequences as a forced crisis, flagged `IsCrisis` and `IsVoluntary`.                                                                 |
-| `ExecuteVoluntaryShift_FromMilitants_LosesHalfTroopsAndThirtyPercentOfForts` | Transformation Matrix (§6)  | Militants lose $\lfloor 50\%\rfloor$ of troops and $\lfloor 30\%\rfloor$ of Fortifications, $-20\%$ VP.                                   |
-| `ExecuteVoluntaryShift_FromZealots_LosesAllMissionariesAndHalfTheChurches` | Transformation Matrix (§6)    | Zealots lose every Missionary and $\lfloor 50\%\rfloor$ of Churches.                                                                        |
-| `ExecuteVoluntaryShift_FromGuilds_LosesHalfTheTreasury`                  | Transformation Matrix (§6)     | Guilds lose $\lfloor 50\%\rfloor$ of the treasury.                                                                                         |
 
 ---
 

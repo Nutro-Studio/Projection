@@ -60,7 +60,7 @@ namespace Tests.Editor
             Assert.AreEqual(FactionType.Guerrillas, result.UpdatedProfile.Faction);
             Assert.AreEqual(1, result.UpdatedProfile.Units[0].OwnerPlayerId);
             Assert.AreEqual(FactionType.Zealots, result.UpdatedProfile.Units[0].OriginalFaction);
-            Assert.AreEqual(1, result.UpdatedProfile.Units.Count, "Missionaries do not join the insurgency.");
+            Assert.AreEqual(2, result.UpdatedProfile.Units.Count);
             Assert.IsTrue(result.IsCrisis);
             Assert.IsFalse(result.IsVoluntary);
         }
@@ -154,8 +154,8 @@ namespace Tests.Editor
 
             var result = _director.ExecuteVoluntaryShift(player, FactionType.Militants, ShiftHoldings.None);
 
-            // 15 Gold loses floor(7.5) = 7
-            Assert.AreEqual(8, result.UpdatedProfile.Gold);
+            // floor(15 * 50%) = 7 Gold kept
+            Assert.AreEqual(7, result.UpdatedProfile.Gold);
             Assert.AreEqual(8, result.UpdatedProfile.VictoryPoints);
         }
 

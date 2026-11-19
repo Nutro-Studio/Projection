@@ -367,11 +367,6 @@ namespace Presentation.Hud
                         () => _interaction.VoluntaryShift(target));
                 }
             }
-
-            if (_session.CanCapitulate())
-            {
-                AddActionButton(HudText.CapitulateButton(), hasAp, _interaction.Capitulate);
-            }
         }
 
         private void AddActionButton(string label, bool enabled, Action onClick)

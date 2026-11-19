@@ -160,7 +160,7 @@ namespace Core.Crisis
             var updatedProfile = player with
             {
                 Faction = targetFaction,
-                Gold = Remaining(player.Gold, penalty.TreasuryLoss),
+                Gold = (int)Math.Floor(player.Gold * (1 - penalty.TreasuryLoss)),
                 VictoryPoints = PenalizedVictoryPoints(player),
                 Units = finalUnits
             };
@@ -181,26 +181,17 @@ namespace Core.Crisis
         }
 
         /// <summary>
-        /// Crisis or capitulation: the treasury is wiped, VP drop by 20% and the remaining troops become
-        /// Insurgents. Missionaries and Traders have no place in an insurgency and leave the board.
+        /// Crisis or capitulation: the treasury is wiped, VP drop by 20% and the player's units stay on as
+        /// Guerrilla insurgents.
         /// </summary>
         private CrisisShiftResult Collapse(PlayerProfile player, bool isVoluntary)
         {
-            var insurgents = new List<UnitInstance>(player.Units.Count);
-            for (int i = 0; i < player.Units.Count; i++)
-            {
-                if (player.Units[i].Type == UnitType.RegularMilitary)
-                {
-                    insurgents.Add(player.Units[i] with { OwnerPlayerId = player.PlayerId });
-                }
-            }
-
             var updatedProfile = player with
             {
                 Faction = FactionType.Guerrillas,
                 Gold = 0,
                 VictoryPoints = PenalizedVictoryPoints(player),
-                Units = insurgents
+                Units = AssignUnitsToOwner(player.Units, player.PlayerId)
             };
 
             var shiftResult = new CrisisShiftResult(
