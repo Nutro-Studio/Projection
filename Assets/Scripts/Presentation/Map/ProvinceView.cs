@@ -7,9 +7,14 @@ namespace Presentation.Map
     [RequireComponent(typeof(SpriteRenderer), typeof(Collider2D))]
     public class ProvinceView : MonoBehaviour
     {
-        private const float SelectedScale = 1.12f;
-        private const float TargetScale = 1.06f;
+        private const float SelectedScale = 1.05f;
         private const float TargetLighten = 0.35f;
+
+        // The terrain keeps its own colours and only leans towards the owner, whose colour shows on the rim.
+        private const float TerrainTint = 0.18f;
+
+        private static readonly Color SelectedGlow = new(1f, 0.85f, 0.35f, 0.9f);
+        private static readonly Color TargetGlow = new(1f, 1f, 1f, 0.55f);
 
         // The banner sits on the owner's own hexagon, so it needs a darker shade to stay visible.
         private const float BannerDarken = 0.45f;
@@ -30,6 +35,7 @@ namespace Presentation.Map
         [SerializeField] private bool _hasFort;
         [SerializeField] private int[] _neighbours;
         [SerializeField] private SpriteRenderer _outline;
+        [SerializeField] private SpriteRenderer _terrain;
         [SerializeField] private TextMeshPro _nameLabel;
         [SerializeField] private SpriteRenderer _ownerBanner;
         [SerializeField] private TextMeshPro _unitCount;
@@ -104,15 +110,16 @@ namespace Presentation.Map
         public void ShowHighlight(bool isSelected, bool isMoveTarget)
         {
             _isMoveTarget = isMoveTarget;
-            float scale = isSelected ? SelectedScale : isMoveTarget ? TargetScale : 1f;
-            transform.localScale = _baseScale * scale;
+            transform.localScale = _baseScale * (isSelected ? SelectedScale : 1f);
             _outline.enabled = isSelected || isMoveTarget;
+            _outline.color = isSelected ? SelectedGlow : TargetGlow;
             ApplyColor();
         }
 
         private void ApplyColor()
         {
             _renderer.color = _isMoveTarget ? Color.Lerp(_ownerColor, Color.white, TargetLighten) : _ownerColor;
+            if (_terrain != null) _terrain.color = Color.Lerp(Color.white, _ownerColor, TerrainTint);
         }
     }
 }
