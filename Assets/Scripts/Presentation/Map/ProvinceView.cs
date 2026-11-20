@@ -37,6 +37,8 @@ namespace Presentation.Map
         [SerializeField] private int _startingTraders;
         [SerializeField] private int _tradingPostOwnerId = ProvinceState.NoTradingPost;
         [SerializeField] private SpriteRenderer _tradingPostBadge;
+        [SerializeField] private bool _hasStartingPresence;
+        [SerializeField] private int _startingRebellionUnits;
 
         private SpriteRenderer _renderer;
         private Vector3 _baseScale;
@@ -51,10 +53,30 @@ namespace Presentation.Map
             _baseScale = transform.localScale;
         }
 
+        public void ConfigureFromSeed(ProvinceSeed seed)
+        {
+            _provinceId = seed.Id;
+            _displayName = string.Empty;
+            _startingOwnerId = seed.OwnerId;
+            _startingUnits = seed.RegularUnits;
+            _startingMissionaries = seed.Missionaries;
+            _hasStartingChurch = seed.HasChurch;
+            _hasStartingPresence = seed.HasPresenceToken;
+            _startingRebellionCellOwnerId = seed.RebellionCellOwnerId;
+            _startingRebellionUnits = seed.RebellionUnits;
+            _hasFort = seed.HasFort;
+            _startingTraders = seed.Traders;
+            _tradingPostOwnerId = seed.TradingPostOwnerId;
+
+            var neighbours = new int[seed.Neighbours.Count];
+            for (int i = 0; i < seed.Neighbours.Count; i++) neighbours[i] = seed.Neighbours[i];
+            _neighbours = neighbours;
+        }
+
         public ProvinceSeed ToSeed() =>
-            new(_provinceId, _displayName, _hasFort, _neighbours, _startingOwnerId, _startingUnits,
+            new(_provinceId, string.Empty, _hasFort, _neighbours, _startingOwnerId, _startingUnits,
                 _startingMissionaries, _hasStartingChurch, _startingRebellionCellOwnerId,
-                _startingTraders, _tradingPostOwnerId);
+                _startingTraders, _tradingPostOwnerId, _hasStartingPresence, _startingRebellionUnits);
 
         public void ShowState(ProvinceState province, Color ownerColor, bool hasOwner)
         {
@@ -93,6 +115,11 @@ namespace Presentation.Map
             {
                 _tradingPostBadge.enabled = province.HasTradingPost;
                 _tradingPostBadge.color = TradingPostTint;
+            }
+            
+            if (_nameLabel != null)
+            {
+                _nameLabel.text = string.Empty;
             }
 
             ApplyColor();

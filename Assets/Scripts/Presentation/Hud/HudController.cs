@@ -193,6 +193,7 @@ namespace Presentation.Hud
             var province = _session.Provinces[selected];
             _provinceName.text = province.Name;
             _provinceOwner.text = HudText.Owner(_session.GetPlayer(province.OwnerId));
+            _provinceName.text = HudText.ProvinceTitle(province);
 
             string summary = HudText.Units(province.Units.Count, _session.CountMovableUnits(selected));
             string breakdown = HudText.GarrisonBreakdown(province, _session.GetPlayer);
