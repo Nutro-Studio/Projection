@@ -18,11 +18,17 @@ namespace Presentation.Prototype
             int controlledProvinces) =>
             _coordinator.CanTriggerVoluntaryShift(player, targetFaction, controlledProvinces);
 
+        public bool CanCapitulate(PlayerProfile player) =>
+            _coordinator.CanCapitulate(player);
+
         public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
             _coordinator.ExecuteAscension(player, targetLandedFaction);
 
         public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
             _coordinator.ExecuteVoluntaryShift(player, targetFaction);
+
+        public CrisisShiftResult ExecuteCapitulation(PlayerProfile player) =>
+            _coordinator.ExecuteCapitulation(player);
 
         public CombatResult ResolveSkirmish(
             IReadOnlyList<UnitInstance> attackers,

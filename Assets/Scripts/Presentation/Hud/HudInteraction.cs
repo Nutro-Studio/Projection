@@ -396,5 +396,13 @@ namespace Presentation.Hud
 
             return movable;
         }
+
+        public void Capitulate()
+        {
+            Targeting = TargetingMode.None;
+            _caravanPath.Clear();
+            LastResult = _session.Capitulate();
+            Changed?.Invoke();
+        }
     }
 }

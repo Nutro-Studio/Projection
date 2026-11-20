@@ -32,10 +32,15 @@ namespace Tests.Editor
             public bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction,
                 int controlledProvinces) => false;
 
+            public bool CanCapitulate(PlayerProfile player) => false;
+
             public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
                 throw new System.NotSupportedException();
 
             public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
+                throw new System.NotSupportedException();
+
+            public CrisisShiftResult ExecuteCapitulation(PlayerProfile player) =>
                 throw new System.NotSupportedException();
         }
 

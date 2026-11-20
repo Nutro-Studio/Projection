@@ -362,7 +362,7 @@ namespace Presentation.Hud
                     AddActionButton(
                         HudText.BuildTradingPostButton(),
                         hasAp && hasTrader && !province.HasTradingPost
-                              && player.Gold >= PrototypeGameSession.TradingPostCost,
+                        && player.Gold >= PrototypeGameSession.TradingPostCost,
                         _interaction.BuildTradingPost);
 
                     if (_interaction.IsTargetingCaravan)
@@ -449,6 +449,14 @@ namespace Presentation.Hud
                         hasAp,
                         () => _interaction.VoluntaryShift(target));
                 }
+            }
+
+            if (_session.CanCapitulate())
+            {
+                AddActionButton(
+                    HudText.CapitulateButton(),
+                    !_session.IsGameOver,
+                    _interaction.Capitulate);
             }
         }
 

@@ -92,6 +92,8 @@ namespace Presentation.Prototype
         bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction, int controlledProvinces);
         CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction);
         CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction);
+        bool CanCapitulate(PlayerProfile player);
+        CrisisShiftResult ExecuteCapitulation(PlayerProfile player);
     }
 
     public sealed class ProvinceState
@@ -160,6 +162,10 @@ namespace Presentation.Prototype
 
         public ProvinceState WithRebellionCell(RebellionCell rebellionCell) =>
             new(Id, Name, HasFort, Neighbours, OwnerId, Units, ChurchOwnerId, PresenceToken, rebellionCell,
+                TradingPostOwnerId);
+
+        public ProvinceState WithFort(bool hasFort) =>
+            new(Id, Name, hasFort, Neighbours, OwnerId, Units, ChurchOwnerId, PresenceToken, RebellionCell,
                 TradingPostOwnerId);
 
         public bool IsAdjacentTo(int provinceId)

@@ -591,12 +591,19 @@ namespace Presentation.Prototype
             var beforeRules = CopyProfile(player, player.Faction, gold, victoryPoints,
                 CollectUnits(player.PlayerId));
 
+            // When crisis is disabled (e.g. 3-province small test map), pass above threshold so forced crisis doesn't fire
             int provincesForRules = _crisisEnabled
                 ? controlled
-                : Math.Max(controlled, CrisisDirector.CrisisProvinceThreshold);
+                : Math.Max(controlled, CrisisDirector.CrisisProvinceThreshold + 1);
             var updated = _rules.EvaluatePlayerTurnState(beforeRules, provincesForRules);
             _players[_currentPlayerIndex] = updated;
             _qualifyingCaravanRoutesThisTurn = 0;
+
+            if (updated.Faction != beforeRules.Faction)
+            {
+                SynchronizeBoardAfterShift(
+                    new CrisisShiftResult(updated, beforeRules.Faction, updated.Faction, true, false, false));
+            }
 
             IsGameOver = updated.VictoryPoints >= CrisisDirector.VictoryPointsThreshold;
             if (!IsGameOver)
@@ -615,6 +622,251 @@ namespace Presentation.Prototype
 
             StateChanged?.Invoke();
             return CommandResult.Ok;
+        }
+
+        public int CountRebelProvinces(int playerId)
+        {
+            int count = 0;
+            for (int i = 0; i < _provinces.Length; i++)
+            {
+                var p = _provinces[i];
+                bool hasPlayerCell = p.RebellionCell != null && p.RebellionCell.OwnerId == playerId;
+                if (hasPlayerCell || p.OwnerId == playerId)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        public bool CanCapitulate()
+        {
+            if (IsGameOver) return false;
+            return _rules.CanCapitulate(CurrentPlayer);
+        }
+
+        public bool CanVoluntaryShift(FactionType targetFaction)
+        {
+            if (IsGameOver || CurrentPlayer.ActionPoints <= 0) return false;
+            return _rules.CanTriggerVoluntaryShift(CurrentPlayer, targetFaction,
+                CountProvinces(CurrentPlayer.PlayerId));
+        }
+
+        public bool CanAscend()
+        {
+            if (IsGameOver || CurrentPlayer.ActionPoints <= 0) return false;
+            return _rules.CanTriggerAscension(CurrentPlayer, CountRebelProvinces(CurrentPlayer.PlayerId));
+        }
+
+        /// <summary>
+        /// Explicit command callable during a player's turn to voluntarily collapse into Guerrillas.
+        /// </summary>
+        public CommandResult Capitulate()
+        {
+            if (IsGameOver) return CommandResult.GameOver;
+
+            var player = CurrentPlayer;
+            if (!_rules.CanCapitulate(player))
+            {
+                return CommandResult.InvalidRulesetShift;
+            }
+
+            var withUnits = player with { Units = CollectUnits(player.PlayerId) };
+            var shift = _rules.ExecuteCapitulation(withUnits);
+            ApplyShiftResult(shift, spendActionPoint: false);
+            return CommandResult.Ok;
+        }
+
+        public CommandResult VoluntaryShift(FactionType targetFaction)
+        {
+            if (IsGameOver) return CommandResult.GameOver;
+            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
+
+            var player = CurrentPlayer;
+            int controlled = CountProvinces(player.PlayerId);
+            if (!_rules.CanTriggerVoluntaryShift(player, targetFaction, controlled))
+            {
+                return CommandResult.InvalidRulesetShift;
+            }
+
+            var withUnits = player with { Units = CollectUnits(player.PlayerId) };
+            var shift = _rules.ExecuteVoluntaryShift(withUnits, targetFaction);
+            ApplyShiftResult(shift, spendActionPoint: true);
+            return CommandResult.Ok;
+        }
+
+        public CommandResult Ascend(FactionType targetLandedFaction)
+        {
+            if (IsGameOver) return CommandResult.GameOver;
+            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
+
+            var player = CurrentPlayer;
+            int rebelCount = CountRebelProvinces(player.PlayerId);
+            if (!_rules.CanTriggerAscension(player, rebelCount))
+            {
+                return CommandResult.InvalidRulesetShift;
+            }
+
+            var withUnits = player with { Units = CollectUnits(player.PlayerId) };
+            var shift = _rules.ExecuteAscension(withUnits, targetLandedFaction);
+            ApplyShiftResult(shift, spendActionPoint: true);
+            return CommandResult.Ok;
+        }
+
+        private void ApplyShiftResult(CrisisShiftResult shift, bool spendActionPoint)
+        {
+            int ap = spendActionPoint ? Math.Max(0, CurrentPlayer.ActionPoints - 1) : CurrentPlayer.ActionPoints;
+            _players[_currentPlayerIndex] = shift.UpdatedProfile with { ActionPoints = ap };
+
+            SynchronizeBoardAfterShift(shift);
+
+            if (_players[_currentPlayerIndex].VictoryPoints >= CrisisDirector.VictoryPointsThreshold)
+            {
+                IsGameOver = true;
+            }
+
+            StateChanged?.Invoke();
+        }
+
+        private void SynchronizeBoardAfterShift(CrisisShiftResult shift)
+        {
+            int playerId = shift.UpdatedProfile.PlayerId;
+            var retainedById = new Dictionary<int, UnitInstance>(shift.UpdatedProfile.Units.Count);
+            for (int i = 0; i < shift.UpdatedProfile.Units.Count; i++)
+            {
+                var u = shift.UpdatedProfile.Units[i];
+                retainedById[u.Id] = u;
+            }
+
+            // 1. Sync unit rosters & transformations across all provinces
+            for (int p = 0; p < _provinces.Length; p++)
+            {
+                var province = _provinces[p];
+                bool unitsChanged = false;
+                var updatedUnits = new List<UnitInstance>(province.Units.Count);
+
+                for (int u = 0; u < province.Units.Count; u++)
+                {
+                    var unit = province.Units[u];
+                    if (unit.OwnerPlayerId != playerId)
+                    {
+                        updatedUnits.Add(unit);
+                        continue;
+                    }
+
+                    if (retainedById.TryGetValue(unit.Id, out var transformed))
+                    {
+                        updatedUnits.Add(transformed);
+                        if (transformed != unit) unitsChanged = true;
+                    }
+                    else
+                    {
+                        unitsChanged = true;
+                    }
+                }
+
+                if (unitsChanged)
+                {
+                    SetProvince(province.WithUnits(updatedUnits));
+                }
+            }
+
+            // 2. Apply faction-specific structural/board penalties & Ascension conversions
+            if (shift.IsCrisis)
+            {
+                // Convert former controlled provinces into undercover guerrilla cells if empty of cells
+                for (int p = 0; p < _provinces.Length; p++)
+                {
+                    var province = _provinces[p];
+                    if (province.OwnerId == playerId && province.RebellionCell == null)
+                    {
+                        SetProvince(province.WithRebellionCell(new RebellionCell(playerId, false)));
+                    }
+                }
+            }
+            else if (shift.PreviousFaction == FactionType.Militants && shift.IsVoluntary)
+            {
+                // Lose 30% Fortifications (rounded to nearest integer)
+                var fortifiedProvinces = new List<int>();
+                for (int p = 0; p < _provinces.Length; p++)
+                {
+                    if (_provinces[p].OwnerId == playerId && _provinces[p].HasFort)
+                    {
+                        fortifiedProvinces.Add(p);
+                    }
+                }
+
+                int fortsToRemove = (int)Math.Round(fortifiedProvinces.Count * 0.30, MidpointRounding.AwayFromZero);
+                for (int i = 0; i < fortsToRemove && i < fortifiedProvinces.Count; i++)
+                {
+                    int idx = fortifiedProvinces[i];
+                    SetProvince(_provinces[idx].WithFort(false));
+                }
+            }
+            else if (shift.PreviousFaction == FactionType.Zealots && shift.IsVoluntary)
+            {
+                // Lose 50% Churches
+                var churchProvinces = new List<int>();
+                for (int p = 0; p < _provinces.Length; p++)
+                {
+                    if (_provinces[p].ChurchOwnerId == playerId)
+                    {
+                        churchProvinces.Add(p);
+                    }
+                }
+
+                int churchesToRemove = (int)Math.Floor(churchProvinces.Count * 0.50);
+                for (int i = 0; i < churchesToRemove && i < churchProvinces.Count; i++)
+                {
+                    int idx = churchProvinces[i];
+                    SetProvince(_provinces[idx].WithChurch(ProvinceState.NoChurch));
+                }
+            }
+            else if (shift.PreviousFaction == FactionType.Guilds && shift.IsVoluntary)
+            {
+                // Lose all Trading Posts
+                for (int p = 0; p < _provinces.Length; p++)
+                {
+                    if (_provinces[p].TradingPostOwnerId == playerId)
+                    {
+                        SetProvince(_provinces[p].WithTradingPost(ProvinceState.NoTradingPost));
+                    }
+                }
+            }
+            else if (shift.IsAscension)
+            {
+                // Convert rebel provinces into formal state provinces with regular military garrisons
+                for (int p = 0; p < _provinces.Length; p++)
+                {
+                    var province = _provinces[p];
+                    bool isRebelProvince = province.RebellionCell != null && province.RebellionCell.OwnerId == playerId;
+                    if (!isRebelProvince) continue;
+
+                    var updated = province.WithRebellionCell(null);
+                    bool hasPlayerMilitary = false;
+                    for (int u = 0; u < updated.Units.Count; u++)
+                    {
+                        if (updated.Units[u].OwnerPlayerId == playerId &&
+                            updated.Units[u].Type == UnitType.RegularMilitary)
+                        {
+                            hasPlayerMilitary = true;
+                            break;
+                        }
+                    }
+
+                    if (!hasPlayerMilitary)
+                    {
+                        var garrison = new List<UnitInstance>(updated.Units)
+                        {
+                            new(_nextUnitId++, playerId, shift.NewFaction, UnitType.RegularMilitary, 1, 1)
+                        };
+                        updated = updated.WithUnits(garrison);
+                    }
+
+                    SetProvince(updated);
+                }
+            }
         }
 
         private int CalculateGuildVictoryPoints(int playerId, int bankedGold)
@@ -975,55 +1227,6 @@ namespace Presentation.Prototype
             }
 
             return enemyIds;
-        }
-
-        public bool CanVoluntaryShift(FactionType targetFaction)
-        {
-            if (IsGameOver || CurrentPlayer.ActionPoints <= 0) return false;
-            return _rules.CanTriggerVoluntaryShift(CurrentPlayer, targetFaction,
-                CountProvinces(CurrentPlayer.PlayerId));
-        }
-
-        public bool CanAscend()
-        {
-            if (IsGameOver || CurrentPlayer.ActionPoints <= 0) return false;
-            return _rules.CanTriggerAscension(CurrentPlayer, CountProvinces(CurrentPlayer.PlayerId));
-        }
-
-        public CommandResult VoluntaryShift(FactionType targetFaction)
-        {
-            if (IsGameOver) return CommandResult.GameOver;
-            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
-
-            var player = CurrentPlayer;
-            int controlled = CountProvinces(player.PlayerId);
-            if (!_rules.CanTriggerVoluntaryShift(player, targetFaction, controlled))
-            {
-                return CommandResult.InvalidRulesetShift;
-            }
-
-            var withUnits = player with { Units = CollectUnits(player.PlayerId) };
-            var shift = _rules.ExecuteVoluntaryShift(withUnits, targetFaction);
-            ApplyShiftResult(shift);
-            return CommandResult.Ok;
-        }
-
-        public CommandResult Ascend(FactionType targetLandedFaction)
-        {
-            if (IsGameOver) return CommandResult.GameOver;
-            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
-
-            var player = CurrentPlayer;
-            int controlled = CountProvinces(player.PlayerId);
-            if (!_rules.CanTriggerAscension(player, controlled))
-            {
-                return CommandResult.InvalidRulesetShift;
-            }
-
-            var withUnits = player with { Units = CollectUnits(player.PlayerId) };
-            var shift = _rules.ExecuteAscension(withUnits, targetLandedFaction);
-            ApplyShiftResult(shift);
-            return CommandResult.Ok;
         }
 
         private void ApplyShiftResult(CrisisShiftResult shift)

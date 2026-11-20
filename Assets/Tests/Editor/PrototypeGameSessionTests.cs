@@ -86,11 +86,16 @@ namespace Tests.Editor
                 int controlledProvinces) =>
                 _director.CanTriggerVoluntaryShift(player, targetFaction, controlledProvinces);
 
+            public bool CanCapitulate(PlayerProfile player) => player.Faction != FactionType.Guerrillas;
+
             public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
                 _director.ExecuteAscension(player, targetLandedFaction);
 
             public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
                 _director.ExecuteVoluntaryShift(player, targetFaction);
+
+            public CrisisShiftResult ExecuteCapitulation(PlayerProfile player) =>
+                _director.ExecuteForcedCrisis(player, isCapitulation: true);
         }
 
         private ScriptedDiceRoller _dice;

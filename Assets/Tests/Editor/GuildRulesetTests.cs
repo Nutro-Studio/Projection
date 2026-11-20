@@ -32,11 +32,15 @@ namespace Tests.Editor
             public int RollContest() => 6;
             public bool CanTriggerAscension(PlayerProfile p, int c) => false;
             public bool CanTriggerVoluntaryShift(PlayerProfile p, FactionType t, int c) => false;
+            public bool CanCapitulate(PlayerProfile player) => false;
 
             public CrisisShiftResult ExecuteAscension(PlayerProfile p, FactionType t) =>
                 throw new System.NotSupportedException();
 
             public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile p, FactionType t) =>
+                throw new System.NotSupportedException();
+
+            public CrisisShiftResult ExecuteCapitulation(PlayerProfile player) =>
                 throw new System.NotSupportedException();
         }
 

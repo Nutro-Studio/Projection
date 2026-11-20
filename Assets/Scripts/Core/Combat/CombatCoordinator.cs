@@ -16,11 +16,17 @@ namespace Core.Combat
             int controlledProvinces) =>
             _crisisDirector.CanTriggerVoluntaryShift(player, targetFaction, controlledProvinces);
 
+        public bool CanCapitulate(PlayerProfile player) =>
+            _crisisDirector.CanCapitulate(player);
+
         public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
             _crisisDirector.ExecuteAscension(player, targetLandedFaction);
 
         public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
             _crisisDirector.ExecuteVoluntaryShift(player, targetFaction);
+
+        public CrisisShiftResult ExecuteCapitulation(PlayerProfile player) =>
+            _crisisDirector.ExecuteForcedCrisis(player, isCapitulation: true);
 
         private ICombatService _combatService;
         private ICrisisDirector _crisisDirector;
