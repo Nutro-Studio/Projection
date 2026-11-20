@@ -10,16 +10,26 @@ namespace Core.Combat
         Guerrillas
     }
 
-    public record CombatUnit(
+    public enum UnitType
+    {
+        RegularMilitary,
+        Missionary,
+        Trader
+    }
+
+    public record UnitInstance(
         int Id,
-        FactionType Faction,
+        int OwnerPlayerId,
+        FactionType OriginalFaction,
+        UnitType Type,
+        int CurrentHp,
         int MaxHp,
-        int CurrentHp
+        bool HasActed = false
     );
 
     public record CombatContext(
-        IReadOnlyList<CombatUnit> Attackers,
-        IReadOnlyList<CombatUnit> Defenders,
+        IReadOnlyList<UnitInstance> Attackers,
+        IReadOnlyList<UnitInstance> Defenders,
         bool DefenderHasFort,
         bool DefenderReceivesFortBonus
     );
@@ -31,8 +41,8 @@ namespace Core.Combat
         int DefenderAssignedRoll,
         int AttackerEffectiveHits,
         int DefenderEffectiveHits,
-        IReadOnlyList<CombatUnit> SurvivingAttackers,
-        IReadOnlyList<CombatUnit> SurvivingDefenders,
+        IReadOnlyList<UnitInstance> SurvivingAttackers,
+        IReadOnlyList<UnitInstance> SurvivingDefenders,
         bool AttackerMustRetreat,
         bool DefenderMustRetreat,
         (int roll1, int roll2, int roll3) AttackerRolls,

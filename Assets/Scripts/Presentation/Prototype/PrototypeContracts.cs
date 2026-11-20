@@ -12,7 +12,58 @@ namespace Presentation.Prototype
         NoUnits,
         NotEnoughGold,
         NotAdjacent,
-        UnitsAlreadyMoved
+        UnitsAlreadyMoved,
+        NoUnitsSelected,
+        InvalidUnitSelection,
+        NoActionPoints,
+        WrongFaction,
+        NoMissionary,
+        AlreadyBuilt,
+        NoMilitaryUnits,
+        NoTargetUnits,
+        NoRebellionCell,
+        NothingToPurge,
+        InvalidBattleTarget,
+        InvalidRulesetShift
+    }
+
+    /// <summary>
+    /// Guerrilla cell. It stays undercover until the owner incites an open rebellion. A province holds at most one.
+    /// </summary>
+    public sealed class RebellionCell
+    {
+        public int OwnerId { get; }
+        public bool IsOpenRebellion { get; }
+
+        public RebellionCell(int ownerId, bool isOpenRebellion)
+        {
+            OwnerId = ownerId;
+            IsOpenRebellion = isOpenRebellion;
+        }
+    }
+
+    /// <summary>
+    /// Zealot consecration marker. A province holds at most one.
+    /// </summary>
+    public sealed class ReligiousPresenceToken
+    {
+        public int OwnerId { get; }
+
+        public ReligiousPresenceToken(int ownerId) => OwnerId = ownerId;
+    }
+
+    public sealed class MoveArmyCommand
+    {
+        public int OriginProvinceId { get; }
+        public int TargetProvinceId { get; }
+        public IReadOnlyList<int> SelectedUnitIds { get; }
+
+        public MoveArmyCommand(int originProvinceId, int targetProvinceId, IReadOnlyList<int> selectedUnitIds)
+        {
+            OriginProvinceId = originProvinceId;
+            TargetProvinceId = targetProvinceId;
+            SelectedUnitIds = selectedUnitIds;
+        }
     }
 
     /// <summary>
@@ -21,25 +72,42 @@ namespace Presentation.Prototype
     public interface IGameRules
     {
         CombatResult ResolveSkirmish(
-            IReadOnlyList<CombatUnit> attackers,
-            IReadOnlyList<CombatUnit> defenders,
+            IReadOnlyList<UnitInstance> attackers,
+            IReadOnlyList<UnitInstance> defenders,
             FactionType defenderFaction,
             bool hasFortification);
 
         PlayerProfile EvaluatePlayerTurnState(PlayerProfile player, int controlledProvinces);
         int CalculateRevenue(FactionType faction, int controlledProvinces);
+
+        /// <summary>One side of a contested roll such as Divine Conversion: the sum of 3d4.</summary>
+        int RollContest();
+
+        bool CanTriggerAscension(PlayerProfile player, int controlledProvinces);
+        bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction, int controlledProvinces);
+        CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction);
+        CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction);
     }
 
     public sealed class ProvinceState
     {
         public const int NeutralOwner = -1;
+        public const int NoChurch = -1;
 
         public int Id { get; }
         public string Name { get; }
         public bool HasFort { get; }
         public IReadOnlyList<int> Neighbours { get; }
         public int OwnerId { get; }
-        public IReadOnlyList<CombatUnit> Units { get; }
+        public IReadOnlyList<UnitInstance> Units { get; }
+
+        /// <summary>Player who built the Church here, or <see cref="NoChurch"/>.</summary>
+        public int ChurchOwnerId { get; }
+
+        public ReligiousPresenceToken PresenceToken { get; }
+        public RebellionCell RebellionCell { get; }
+
+        public bool HasChurch => ChurchOwnerId != NoChurch;
 
         public ProvinceState(
             int id,
@@ -47,7 +115,10 @@ namespace Presentation.Prototype
             bool hasFort,
             IReadOnlyList<int> neighbours,
             int ownerId,
-            IReadOnlyList<CombatUnit> units)
+            IReadOnlyList<UnitInstance> units,
+            int churchOwnerId = NoChurch,
+            ReligiousPresenceToken presenceToken = null,
+            RebellionCell rebellionCell = null)
         {
             Id = id;
             Name = name;
@@ -55,10 +126,25 @@ namespace Presentation.Prototype
             Neighbours = neighbours;
             OwnerId = ownerId;
             Units = units;
+            ChurchOwnerId = churchOwnerId;
+            PresenceToken = presenceToken;
+            RebellionCell = rebellionCell;
         }
 
-        public ProvinceState WithOccupation(int ownerId, IReadOnlyList<CombatUnit> units) =>
-            new(Id, Name, HasFort, Neighbours, ownerId, units);
+        public ProvinceState WithOccupation(int ownerId, IReadOnlyList<UnitInstance> units) =>
+            new(Id, Name, HasFort, Neighbours, ownerId, units, ChurchOwnerId, PresenceToken, RebellionCell);
+
+        public ProvinceState WithUnits(IReadOnlyList<UnitInstance> units) =>
+            new(Id, Name, HasFort, Neighbours, OwnerId, units, ChurchOwnerId, PresenceToken, RebellionCell);
+
+        public ProvinceState WithChurch(int churchOwnerId) =>
+            new(Id, Name, HasFort, Neighbours, OwnerId, Units, churchOwnerId, PresenceToken, RebellionCell);
+
+        public ProvinceState WithPresence(ReligiousPresenceToken presenceToken) =>
+            new(Id, Name, HasFort, Neighbours, OwnerId, Units, ChurchOwnerId, presenceToken, RebellionCell);
+
+        public ProvinceState WithRebellionCell(RebellionCell rebellionCell) =>
+            new(Id, Name, HasFort, Neighbours, OwnerId, Units, ChurchOwnerId, PresenceToken, rebellionCell);
 
         public bool IsAdjacentTo(int provinceId)
         {

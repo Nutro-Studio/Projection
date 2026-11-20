@@ -20,7 +20,7 @@ namespace Core.Combat
                 throw new InvalidOperationException("Combat requires at least one unit on both sides.");
             }
 
-            // 1. Roll 3d4 for both sides (Range: 3-12)
+            // 1. Roll 3d4 for both sides (Root-style d4 [0-3], Sum Range: 0-9)
             var (a1, a2, a3) = _diceRoller.Roll3D4();
             var (d1, d2, d3) = _diceRoller.Roll3D4();
             int rollSumA = a1 + a2 + a3;
@@ -48,9 +48,12 @@ namespace Core.Combat
                 hasFortArmor: false
             );
 
-            // 5. Casualties & Retreat: higher net losses retreats; defender wins ties
-            bool attackerRetreats = attackerCasualties >= defenderCasualties;
-            bool defenderRetreats = defenderCasualties > attackerCasualties;
+            // 5. Casualties & Retreat:
+            // If all defenders are wiped out and attackers survive, the province falls.
+            // Otherwise, higher net losses retreats and the defender wins ties.
+            bool defenderWipedOut = survivingDefenders.Count == 0 && survivingAttackers.Count > 0;
+            bool defenderRetreats = defenderWipedOut || defenderCasualties > attackerCasualties;
+            bool attackerRetreats = !defenderRetreats;
 
             return new CombatResult(
                 AttackerRawSum: rollSumA,
@@ -68,8 +71,8 @@ namespace Core.Combat
             );
         }
 
-        private static (List<CombatUnit> SurvivingUnits, int Casualties) ApplyHitsToArmy(
-            IReadOnlyList<CombatUnit> units,
+        private static (List<UnitInstance> SurvivingUnits, int Casualties) ApplyHitsToArmy(
+            IReadOnlyList<UnitInstance> units,
             int incomingHits,
             bool hasFortArmor)
         {
@@ -77,7 +80,7 @@ namespace Core.Combat
             int hitsLeft = incomingHits;
             int casualties = 0;
 
-            var surviving = new List<CombatUnit>(count);
+            var surviving = new List<UnitInstance>(count);
 
             for (int i = 0; i < count; i++)
             {

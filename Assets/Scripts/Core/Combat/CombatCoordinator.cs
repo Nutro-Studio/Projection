@@ -9,6 +9,19 @@ namespace Core.Combat
     {
         public static CombatCoordinator Instance { get; private set; }
 
+        public bool CanTriggerAscension(PlayerProfile player, int controlledProvinces) =>
+            _crisisDirector.CanTriggerAscension(player, controlledProvinces);
+
+        public bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction,
+            int controlledProvinces) =>
+            _crisisDirector.CanTriggerVoluntaryShift(player, targetFaction, controlledProvinces);
+
+        public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
+            _crisisDirector.ExecuteAscension(player, targetLandedFaction);
+
+        public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
+            _crisisDirector.ExecuteVoluntaryShift(player, targetFaction);
+
         private ICombatService _combatService;
         private ICrisisDirector _crisisDirector;
         private IReadOnlyDictionary<FactionType, IFactionRuleset> _rulesets;
@@ -51,8 +64,8 @@ namespace Core.Combat
         /// Entry point for movement system when armies collide.
         /// </summary>
         public CombatResult ResolveSkirmish(
-            IReadOnlyList<CombatUnit> attackers,
-            IReadOnlyList<CombatUnit> defenders,
+            IReadOnlyList<UnitInstance> attackers,
+            IReadOnlyList<UnitInstance> defenders,
             FactionType defenderFaction,
             bool hasFortification)
         {
