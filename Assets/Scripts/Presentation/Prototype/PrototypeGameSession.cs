@@ -14,20 +14,31 @@ namespace Presentation.Prototype
         public const int StartingGold = 10;
         public const int UnitCost = 3;
         public const int MissionaryCost = 3;
-        public const int TraderCost = 3;
+        public const int TraderCost = 2;
         public const int ChurchCost = 4;
         public const int ChurchTithe = 1;
         public const int RebellionCellCost = 2;
         public const int ConversionLimit = 2;
         public const int VictoryPointsPerProvince = 1;
+        public const int TradingPostCost = 4;
+        public const int StartingTradingPostCount = 2;
+        public const int CaravanBaseGainPerProvince = 2;
+        public const int CaravanTransitToll = 1;
+        public const int CaravanMinTraversedForVp = 3;
+        public const int HostileBuyoutBaseCost = 6;
+        public const int HostileBuyoutUnitPremium = 2;
+        public const int HostileBuyoutBuildingPremium = 2;
+        public const int DefaultMercenaryPrice = 4;
 
         private readonly IGameRules _rules;
         private readonly bool _crisisEnabled;
         private readonly PlayerProfile[] _players;
         private readonly ProvinceState[] _provinces;
+        private readonly HashSet<(int EmbargoerId, int GuildId)> _activeEmbargoes = new();
 
         private int _currentPlayerIndex;
         private int _nextUnitId;
+        private int _qualifyingCaravanRoutesThisTurn;
 
         public event Action StateChanged;
         public event Action<BattleReport> BattleResolved;
@@ -79,6 +90,41 @@ namespace Presentation.Prototype
 
             return null;
         }
+
+        public int CountOwnedTradingPosts(int playerId)
+        {
+            int count = 0;
+            for (int i = 0; i < _provinces.Length; i++)
+            {
+                if (_provinces[i].TradingPostOwnerId == playerId)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        public int CountPlayerUnitsOfType(int playerId, UnitType type)
+        {
+            int count = 0;
+            for (int i = 0; i < _provinces.Length; i++)
+            {
+                var units = _provinces[i].Units;
+                for (int u = 0; u < units.Count; u++)
+                {
+                    if (units[u].OwnerPlayerId == playerId && units[u].Type == type)
+                    {
+                        count++;
+                    }
+                }
+            }
+
+            return count;
+        }
+
+        public bool IsEmbargoedBy(int targetOwnerId, int guildPlayerId) =>
+            _activeEmbargoes.Contains((targetOwnerId, guildPlayerId));
 
         /// <summary>
         /// Calculates total Root-style strength points for a player in a province:
@@ -158,13 +204,16 @@ namespace Presentation.Prototype
         }
 
         /// <summary>
-        /// Zealots cannot recruit standing armies; they field only converted or inherited military units.
+        /// Zealots and Guilds cannot recruit standing armies; they field only converted, mercenary, or inherited units.
         /// </summary>
         public CommandResult BuyUnit(int provinceId)
         {
             var check = ValidateOwnProvinceAction(provinceId);
             if (check != CommandResult.Ok) return check;
-            if (CurrentPlayer.Faction == FactionType.Zealots) return CommandResult.WrongFaction;
+            if (CurrentPlayer.Faction == FactionType.Zealots || CurrentPlayer.Faction == FactionType.Guilds)
+            {
+                return CommandResult.WrongFaction;
+            }
 
             return Recruit(provinceId, UnitCost, UnitType.RegularMilitary);
         }
@@ -180,9 +229,20 @@ namespace Presentation.Prototype
 
         public CommandResult BuyTrader(int provinceId)
         {
-            var check = ValidateOwnProvinceAction(provinceId);
-            if (check != CommandResult.Ok) return check;
+            if (IsGameOver) return CommandResult.GameOver;
+            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
             if (CurrentPlayer.Faction != FactionType.Guilds) return CommandResult.WrongFaction;
+
+            var province = _provinces[provinceId];
+            bool canRecruitHere = province.OwnerId == CurrentPlayer.PlayerId
+                                  || province.TradingPostOwnerId == CurrentPlayer.PlayerId;
+            if (!canRecruitHere) return CommandResult.NotYourProvince;
+
+            if (CountPlayerUnitsOfType(CurrentPlayer.PlayerId, UnitType.Trader) >=
+                CountOwnedTradingPosts(CurrentPlayer.PlayerId))
+            {
+                return CommandResult.TraderCapReached;
+            }
 
             return Recruit(provinceId, TraderCost, UnitType.Trader);
         }
@@ -373,8 +433,8 @@ namespace Presentation.Prototype
         }
 
         /// <summary>
-        /// A landed army occupying the province dismantles an enemy Church (unless the province is fortified, which
-        /// keeps it a Religious Bastion) and cleanses an enemy Religious Presence token.
+        /// A landed army occupying the province dismantles an enemy Church or Trading Post (unless the province is
+        /// fortified, which keeps it a Bastion) and cleanses an enemy Religious Presence token.
         /// </summary>
         public CommandResult CleanseProvince(int provinceId)
         {
@@ -385,10 +445,13 @@ namespace Presentation.Prototype
 
             var province = _provinces[provinceId];
             bool dismantleChurch = province.HasChurch && province.ChurchOwnerId != player.PlayerId && !province.HasFort;
+            bool dismantleTradingPost = province.HasTradingPost && province.TradingPostOwnerId != player.PlayerId &&
+                                        !province.HasFort;
             bool cleanseToken = province.PresenceToken != null && province.PresenceToken.OwnerId != player.PlayerId;
-            if (!dismantleChurch && !cleanseToken) return CommandResult.NothingToPurge;
+            if (!dismantleChurch && !dismantleTradingPost && !cleanseToken) return CommandResult.NothingToPurge;
 
             if (dismantleChurch) province = province.WithChurch(ProvinceState.NoChurch);
+            if (dismantleTradingPost) province = province.WithTradingPost(ProvinceState.NoTradingPost);
             if (cleanseToken) province = province.WithPresence(null);
 
             SetProvince(province);
@@ -470,7 +533,6 @@ namespace Presentation.Prototype
             bool defenderHasFort = province.HasFort && province.OwnerId == defenderPlayerId;
             var result = _rules.ResolveSkirmish(attackers, defenders, defender.Faction, defenderHasFort);
 
-            // Preserve all unaffected units (bystanders, non-combatant missionaries, traders) in the province.
             var bystanders = new List<UnitInstance>(province.Units.Count);
             for (int i = 0; i < province.Units.Count; i++)
             {
@@ -521,7 +583,11 @@ namespace Presentation.Prototype
             var player = CurrentPlayer;
             int controlled = CountProvinces(player.PlayerId);
             int gold = player.Gold + _rules.CalculateRevenue(player.Faction, controlled);
-            int victoryPoints = player.VictoryPoints + controlled * VictoryPointsPerProvince;
+            int vpGain = player.Faction == FactionType.Guilds
+                ? CalculateGuildVictoryPoints(player.PlayerId, gold)
+                : controlled * VictoryPointsPerProvince;
+            int victoryPoints = player.VictoryPoints + vpGain;
+
             var beforeRules = CopyProfile(player, player.Faction, gold, victoryPoints,
                 CollectUnits(player.PlayerId));
 
@@ -530,6 +596,7 @@ namespace Presentation.Prototype
                 : Math.Max(controlled, CrisisDirector.CrisisProvinceThreshold);
             var updated = _rules.EvaluatePlayerTurnState(beforeRules, provincesForRules);
             _players[_currentPlayerIndex] = updated;
+            _qualifyingCaravanRoutesThisTurn = 0;
 
             IsGameOver = updated.VictoryPoints >= CrisisDirector.VictoryPointsThreshold;
             if (!IsGameOver)
@@ -548,6 +615,14 @@ namespace Presentation.Prototype
 
             StateChanged?.Invoke();
             return CommandResult.Ok;
+        }
+
+        private int CalculateGuildVictoryPoints(int playerId, int bankedGold)
+        {
+            int tradingPosts = CountOwnedTradingPosts(playerId);
+            int goldVp = Math.Max(0, bankedGold) / 10;
+            int routeVp = _qualifyingCaravanRoutesThisTurn * 2;
+            return tradingPosts + goldVp + routeVp;
         }
 
         /// <summary>
@@ -626,11 +701,6 @@ namespace Presentation.Prototype
             }
         }
 
-        /// <summary>
-        /// Selected units belonging to <paramref name="movingPlayerId"/> move and have HasActed set to true;
-        /// every other unit stays in the origin. Fails without side effects when a selected unit has already acted,
-        /// is not in the province, belongs to another player, or is listed twice.
-        /// </summary>
         private static CommandResult SplitSelectedUnits(
             ProvinceState province,
             int movingPlayerId,
@@ -689,9 +759,6 @@ namespace Presentation.Prototype
             return CommandResult.Ok;
         }
 
-        /// <summary>
-        /// The player's faction must be allowed the action and have at least one military unit present in the province.
-        /// </summary>
         private CommandResult ValidatePresence(int provinceId, bool factionAllowed)
         {
             if (IsGameOver) return CommandResult.GameOver;
@@ -723,10 +790,6 @@ namespace Presentation.Prototype
             return CommandResult.Ok;
         }
 
-        /// <summary>
-        /// Phase 1 upkeep: each non-Zealot unit standing in a Zealot Church province pays the Church owner one Gold.
-        /// Units the treasury cannot cover are disbanded.
-        /// </summary>
         private void CollectChurchTithes()
         {
             var payer = CurrentPlayer;
@@ -797,19 +860,6 @@ namespace Presentation.Prototype
             for (int i = 0; i < _players.Length; i++)
             {
                 if (_players[i].PlayerId == playerId)
-                {
-                    return i;
-                }
-            }
-
-            return -1;
-        }
-
-        private static int IndexOfType(IReadOnlyList<UnitInstance> units, UnitType type)
-        {
-            for (int i = 0; i < units.Count; i++)
-            {
-                if (units[i].Type == type)
                 {
                     return i;
                 }
@@ -907,9 +957,6 @@ namespace Presentation.Prototype
             IReadOnlyList<UnitInstance> units) =>
             new(profile.PlayerId, faction, gold, victoryPoints, units, profile.ActionPoints);
 
-        /// <summary>
-        /// Returns distinct enemy player IDs that currently have RegularMilitary units in <paramref name="provinceId"/>.
-        /// </summary>
         public List<int> GetCoexistingEnemyIds(int provinceId)
         {
             var units = _provinces[provinceId].Units;
@@ -986,7 +1033,6 @@ namespace Presentation.Prototype
                 ActionPoints = CurrentPlayer.ActionPoints - 1
             };
 
-            // If Militant voluntary shift pruned units, sync board garrisons to match RetainedUnits
             if (shift.PreviousFaction == FactionType.Militants && shift.IsVoluntary)
             {
                 var survivingIds = new HashSet<int>();
@@ -1021,6 +1067,327 @@ namespace Presentation.Prototype
             }
 
             StateChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Guilds establish a Trading Post in any unbuilt province where they have a Trader present.
+        /// Grants +1 Trader immediately per Rulebook Section 3.
+        /// </summary>
+        public CommandResult BuildTradingPost(int provinceId)
+        {
+            var check = ValidateAction(FactionType.Guilds);
+            if (check != CommandResult.Ok) return check;
+
+            var province = _provinces[provinceId];
+            var player = CurrentPlayer;
+            if (IndexOfPlayerUnitType(province.Units, player.PlayerId, UnitType.Trader) < 0)
+            {
+                return CommandResult.NoTrader;
+            }
+
+            if (province.HasTradingPost) return CommandResult.AlreadyBuilt;
+            if (player.Gold < TradingPostCost) return CommandResult.NotEnoughGold;
+
+            var updatedUnits = new List<UnitInstance>(province.Units)
+            {
+                new(_nextUnitId++, player.PlayerId, FactionType.Guilds, UnitType.Trader, 1, 1)
+            };
+
+            SetProvince(province.WithTradingPost(player.PlayerId).WithUnits(updatedUnits));
+            AddGold(_currentPlayerIndex, -TradingPostCost);
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// Caravan Network (Rulebook Section 5.3): moves a ready Guild Trader between two Trading Posts
+        /// along an adjacent path. Pays 1G transit fee to each traversed province owner and gains
+        /// 2G + (extraTradingPosts / 2) per province traversed. Routes traversing >= 3 provinces score +2 VP.
+        /// </summary>
+        public CommandResult RunCaravan(IReadOnlyList<int> path)
+        {
+            var check = ValidateAction(FactionType.Guilds);
+            if (check != CommandResult.Ok) return check;
+
+            if (path == null || path.Count < 2) return CommandResult.InvalidCaravanPath;
+
+            int playerId = CurrentPlayer.PlayerId;
+            int originId = path[0];
+            int destId = path[path.Count - 1];
+            if (originId < 0 || originId >= _provinces.Length || destId < 0 || destId >= _provinces.Length)
+            {
+                return CommandResult.InvalidCaravanPath;
+            }
+
+            if (!_provinces[originId].HasTradingPost || !_provinces[destId].HasTradingPost)
+            {
+                return CommandResult.InvalidCaravanPath;
+            }
+
+            var origin = _provinces[originId];
+            int traderIndex = -1;
+            for (int i = 0; i < origin.Units.Count; i++)
+            {
+                var u = origin.Units[i];
+                if (u.OwnerPlayerId == playerId && u.Type == UnitType.Trader && !u.HasActed)
+                {
+                    traderIndex = i;
+                    break;
+                }
+            }
+
+            if (traderIndex < 0) return CommandResult.NoTrader;
+
+            var visited = new HashSet<int> { originId };
+            int totalToll = 0;
+            int traversedCount = path.Count - 1;
+
+            for (int step = 1; step < path.Count; step++)
+            {
+                int prevId = path[step - 1];
+                int nextId = path[step];
+                if (nextId < 0 || nextId >= _provinces.Length) return CommandResult.InvalidCaravanPath;
+                if (!visited.Add(nextId)) return CommandResult.InvalidCaravanPath;
+                if (!_provinces[prevId].IsAdjacentTo(nextId)) return CommandResult.NotAdjacent;
+
+                int ownerId = _provinces[nextId].OwnerId;
+                if (ownerId != ProvinceState.NeutralOwner && ownerId != playerId)
+                {
+                    totalToll += CaravanTransitToll;
+                }
+            }
+
+            if (CurrentPlayer.Gold < totalToll) return CommandResult.NotEnoughGold;
+
+            for (int step = 1; step < path.Count; step++)
+            {
+                int ownerId = _provinces[path[step]].OwnerId;
+                if (ownerId != ProvinceState.NeutralOwner && ownerId != playerId)
+                {
+                    int ownerIdx = IndexOfPlayer(ownerId);
+                    if (ownerIdx >= 0)
+                    {
+                        AddGold(ownerIdx, CaravanTransitToll);
+                    }
+                }
+            }
+
+            int extraPosts = Math.Max(0, CountOwnedTradingPosts(playerId) - StartingTradingPostCount);
+            int gainPerProvince = CaravanBaseGainPerProvince + (extraPosts / 2);
+            int netGoldDelta = (traversedCount * gainPerProvince) - totalToll;
+            AddGold(_currentPlayerIndex, netGoldDelta);
+
+            var trader = origin.Units[traderIndex] with { HasActed = true };
+            var originUnits = new List<UnitInstance>(origin.Units.Count - 1);
+            for (int i = 0; i < origin.Units.Count; i++)
+            {
+                if (i != traderIndex) originUnits.Add(origin.Units[i]);
+            }
+
+            var dest = _provinces[destId];
+            var destUnits = new List<UnitInstance>(dest.Units) { trader };
+
+            SetProvince(origin.WithUnits(originUnits));
+            SetProvince(dest.WithUnits(destUnits));
+
+            if (traversedCount >= CaravanMinTraversedForVp)
+            {
+                _qualifyingCaravanRoutesThisTurn++;
+            }
+
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// Computes the market value to buy out an unfortified foreign province.
+        /// </summary>
+        public int GetHostileBuyoutCost(int provinceId)
+        {
+            var province = _provinces[provinceId];
+            int cost = HostileBuyoutBaseCost;
+            for (int i = 0; i < province.Units.Count; i++)
+            {
+                var u = province.Units[i];
+                if (u.OwnerPlayerId == province.OwnerId && u.Type == UnitType.RegularMilitary)
+                {
+                    cost += HostileBuyoutUnitPremium;
+                }
+            }
+
+            if (province.HasChurch) cost += HostileBuyoutBuildingPremium;
+            if (province.HasTradingPost) cost += HostileBuyoutBuildingPremium;
+            return cost;
+        }
+
+        /// <summary>
+        /// Target player declares an Embargo against a Guild player, vetoing Hostile Buyouts and making
+        /// Guild Traders fair game to raid.
+        /// </summary>
+        public CommandResult DeclareEmbargo(int guildPlayerId)
+        {
+            if (IsGameOver) return CommandResult.GameOver;
+            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
+            var guild = GetPlayer(guildPlayerId);
+            if (guild == null || guild.Faction != FactionType.Guilds || guildPlayerId == CurrentPlayer.PlayerId)
+            {
+                return CommandResult.InvalidBattleTarget;
+            }
+
+            if (!_activeEmbargoes.Add((CurrentPlayer.PlayerId, guildPlayerId)))
+            {
+                return CommandResult.AlreadyBuilt;
+            }
+
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// Military unit of an embargoing player raids and eliminates a co-existing Guild Trader, looting 2G.
+        /// </summary>
+        public CommandResult RaidCaravan(int provinceId, int guildPlayerId)
+        {
+            if (IsGameOver) return CommandResult.GameOver;
+            if (CurrentPlayer.ActionPoints <= 0) return CommandResult.NoActionPoints;
+            if (!IsEmbargoedBy(CurrentPlayer.PlayerId, guildPlayerId)) return CommandResult.NotEmbargoed;
+            if (GetUnitsForPlayer(provinceId, CurrentPlayer.PlayerId, UnitType.RegularMilitary).Count == 0)
+            {
+                return CommandResult.NoMilitaryUnits;
+            }
+
+            var province = _provinces[provinceId];
+            int traderIdx = IndexOfPlayerUnitType(province.Units, guildPlayerId, UnitType.Trader);
+            if (traderIdx < 0) return CommandResult.NoTrader;
+
+            var updatedUnits = new List<UnitInstance>(province.Units.Count - 1);
+            for (int i = 0; i < province.Units.Count; i++)
+            {
+                if (i != traderIdx) updatedUnits.Add(province.Units[i]);
+            }
+
+            SetProvince(province.WithUnits(updatedUnits));
+            AddGold(_currentPlayerIndex, TraderCost);
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// Hostile Buyout: Guilds pay market value to purchase an unfortified province owned by another player
+        /// where they have a Trader present, instantly placing a Trading Post (+1 Trader) and retreating enemy troops.
+        /// </summary>
+        public CommandResult HostileBuyout(int provinceId)
+        {
+            var check = ValidateAction(FactionType.Guilds);
+            if (check != CommandResult.Ok) return check;
+
+            var province = _provinces[provinceId];
+            var player = CurrentPlayer;
+
+            if (province.OwnerId == ProvinceState.NeutralOwner || province.OwnerId == player.PlayerId)
+            {
+                return CommandResult.InvalidBattleTarget;
+            }
+
+            if (IsEmbargoedBy(province.OwnerId, player.PlayerId))
+            {
+                return CommandResult.TargetEmbargoed;
+            }
+
+            if (province.HasFort) return CommandResult.ProvinceFortified;
+
+            if (IndexOfPlayerUnitType(province.Units, player.PlayerId, UnitType.Trader) < 0)
+            {
+                return CommandResult.NoTrader;
+            }
+
+            int cost = GetHostileBuyoutCost(provinceId);
+            if (player.Gold < cost) return CommandResult.NotEnoughGold;
+
+            int previousOwnerId = province.OwnerId;
+            int previousOwnerIdx = IndexOfPlayer(previousOwnerId);
+
+            var remainingUnits = new List<UnitInstance>(province.Units.Count);
+            var expelledMilitary = new List<UnitInstance>();
+            for (int i = 0; i < province.Units.Count; i++)
+            {
+                var u = province.Units[i];
+                if (u.OwnerPlayerId == previousOwnerId && u.Type == UnitType.RegularMilitary)
+                {
+                    expelledMilitary.Add(u);
+                }
+                else
+                {
+                    remainingUnits.Add(u);
+                }
+            }
+
+            if (!province.HasTradingPost)
+            {
+                remainingUnits.Add(new UnitInstance(_nextUnitId++, player.PlayerId, FactionType.Guilds, UnitType.Trader,
+                    1,
+                    1));
+            }
+
+            AddGold(_currentPlayerIndex, -cost);
+            if (previousOwnerIdx >= 0)
+            {
+                AddGold(previousOwnerIdx, cost);
+            }
+
+            var updatedProvince = province
+                .WithOccupation(player.PlayerId, remainingUnits)
+                .WithTradingPost(province.HasTradingPost ? province.TradingPostOwnerId : player.PlayerId);
+            _provinces[provinceId] = updatedProvince;
+            OnProvinceStateChanged?.Invoke(updatedProvince);
+
+            if (expelledMilitary.Count > 0)
+            {
+                RetreatUnits(updatedProvince, previousOwnerId, expelledMilitary);
+            }
+
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
+        /// <summary>
+        /// War Financing (Rulebook Section 5.3): Guilds sell a Mercenary unit in <paramref name="provinceId"/>
+        /// to <paramref name="buyerPlayerId"/> for <paramref name="goldPrice"/> Gold.
+        /// </summary>
+        public CommandResult SellMercenaryContract(int provinceId, int buyerPlayerId,
+            int goldPrice = DefaultMercenaryPrice)
+        {
+            var check = ValidateAction(FactionType.Guilds);
+            if (check != CommandResult.Ok) return check;
+
+            if (goldPrice < 0 || buyerPlayerId == CurrentPlayer.PlayerId) return CommandResult.InvalidBattleTarget;
+            int buyerIdx = IndexOfPlayer(buyerPlayerId);
+            if (buyerIdx < 0) return CommandResult.InvalidBattleTarget;
+            if (_players[buyerIdx].Gold < goldPrice) return CommandResult.NotEnoughGold;
+
+            var province = _provinces[provinceId];
+            if (IndexOfPlayerUnitType(province.Units, CurrentPlayer.PlayerId, UnitType.Trader) < 0
+                && province.TradingPostOwnerId != CurrentPlayer.PlayerId)
+            {
+                return CommandResult.NoTrader;
+            }
+
+            var units = new List<UnitInstance>(province.Units)
+            {
+                new(_nextUnitId++, buyerPlayerId, FactionType.Guilds, UnitType.RegularMilitary, 1, 1)
+            };
+
+            AddGold(buyerIdx, -goldPrice);
+            AddGold(_currentPlayerIndex, goldPrice);
+            SetProvince(province.WithUnits(units));
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
         }
     }
 }

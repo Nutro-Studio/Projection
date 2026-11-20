@@ -713,15 +713,27 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void BuyTrader_CostsThreeGold_AndIsGuildOnly()
+        public void BuyTrader_CostsTwoGold_AndIsGuildOnly()
         {
             var session = CreateSession(attackerFaction: FactionType.Guilds);
+            var withPost = new ProvinceState(AttackerHome, "A", false, new[] { NeutralLand, DefenderHome }, Attacker,
+                new List<UnitInstance>(), tradingPostOwnerId: Attacker);
+            session = new PrototypeGameSession(new CoreRules(_dice),
+                new[]
+                {
+                    new PlayerProfile(Attacker, FactionType.Guilds, PrototypeGameSession.StartingGold, 0,
+                        new List<UnitInstance>()),
+                    new PlayerProfile(Defender, FactionType.Zealots, PrototypeGameSession.StartingGold, 0,
+                        new List<UnitInstance>())
+                },
+                new[] { withPost, session.Provinces[NeutralLand], session.Provinces[DefenderHome] },
+                false);
 
             Assert.AreEqual(CommandResult.Ok, session.BuyTrader(AttackerHome));
 
-            Assert.AreEqual(PrototypeGameSession.StartingGold - 3, session.CurrentPlayer.Gold);
-            Assert.AreEqual(UnitType.Trader, session.Provinces[AttackerHome].Units[1].Type);
-            Assert.AreEqual(FactionType.Guilds, session.Provinces[AttackerHome].Units[1].OriginalFaction);
+            Assert.AreEqual(PrototypeGameSession.StartingGold - 2, session.CurrentPlayer.Gold);
+            Assert.AreEqual(UnitType.Trader, session.Provinces[AttackerHome].Units[0].Type);
+            Assert.AreEqual(FactionType.Guilds, session.Provinces[AttackerHome].Units[0].OriginalFaction);
             Assert.AreEqual(CommandResult.WrongFaction, CreateSession().BuyTrader(AttackerHome));
         }
 

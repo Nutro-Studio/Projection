@@ -126,6 +126,13 @@ namespace Presentation.Hud
                 markers.Add($"{state} ({who})");
             }
 
+            if (province.HasTradingPost)
+            {
+                var owner = getPlayer(province.TradingPostOwnerId);
+                string who = owner != null ? $"P{owner.PlayerId}" : $"P{province.TradingPostOwnerId}";
+                markers.Add($"Trading Post ({who})");
+            }
+
             return markers.Count == 0 ? string.Empty : $"Markers: {string.Join(" | ", markers)}";
         }
 
@@ -158,6 +165,16 @@ namespace Presentation.Hud
 
         public static string CleanseButton() => "Cleanse Province";
 
+        public static string BuildTradingPostButton() => $"Trading Post ({PrototypeGameSession.TradingPostCost}G)";
+        public static string CaravanNetworkButton() => "Caravan Network";
+        public static string ConfirmCaravanButton(int nodes) => $"Run Caravan ({nodes} nodes)";
+        public static string HostileBuyoutButton(int cost) => $"Hostile Buyout ({cost}G)";
+        public static string EmbargoButton(PlayerProfile guild) => $"Embargo P{guild.PlayerId}";
+        public static string RaidCaravanButton(PlayerProfile guild) => $"Raid P{guild.PlayerId} Caravan";
+
+        public static string SellMercenaryButton(PlayerProfile buyer) =>
+            $"Sell Mercenary to P{buyer.PlayerId} ({PrototypeGameSession.DefaultMercenaryPrice}G)";
+
         public static string AttackButton(PlayerProfile enemy) =>
             $"Attack P{enemy.PlayerId} ({Faction(enemy.Faction)})";
 
@@ -185,6 +202,14 @@ namespace Presentation.Hud
             CommandResult.NothingToPurge => "There is nothing here to purge.",
             CommandResult.InvalidBattleTarget => "Choose a valid enemy force in this province.",
             CommandResult.InvalidRulesetShift => "Ruleset shift requirements are not met.",
+            CommandResult.NoTrader => "This needs a ready Trader in the province.",
+            CommandResult.ProvinceFortified => "Fortified provinces cannot be bought out.",
+            CommandResult.InvalidCaravanPath => "Select a contiguous path of at least 2 provinces.",
+            CommandResult.TraderCapReached => "Build more Trading Posts to support additional Traders.",
+            CommandResult.TargetEmbargoed => "Target faction has declared an Embargo against you.",
+            CommandResult.NotEmbargoed => "Declare an Embargo before raiding Guild caravans.",
+            CommandResult.CannotBuyoutWithExistingTradingPost =>
+                "Cannot buy out a province that already has a Trading Post.",
             _ => result.ToString()
         };
 

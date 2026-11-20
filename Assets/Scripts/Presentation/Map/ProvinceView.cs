@@ -15,6 +15,7 @@ namespace Presentation.Map
         private static readonly Color PresenceTint = new(0.45f, 0.85f, 1f, 1f);
         private static readonly Color UndercoverCellTint = new(0.25f, 0.75f, 0.35f, 0.55f);
         private static readonly Color OpenRebellionTint = new(0.95f, 0.25f, 0.2f, 1f);
+        private static readonly Color TradingPostTint = new(0.35f, 0.72f, 0.95f, 1f);
 
         [SerializeField] private int _provinceId;
         [SerializeField] private string _displayName;
@@ -33,6 +34,9 @@ namespace Presentation.Map
         [SerializeField] private SpriteRenderer _churchBadge;
         [SerializeField] private SpriteRenderer _presenceBadge;
         [SerializeField] private SpriteRenderer _rebellionBadge;
+        [SerializeField] private int _startingTraders;
+        [SerializeField] private int _tradingPostOwnerId = ProvinceState.NoTradingPost;
+        [SerializeField] private SpriteRenderer _tradingPostBadge;
 
         private SpriteRenderer _renderer;
         private Vector3 _baseScale;
@@ -49,7 +53,8 @@ namespace Presentation.Map
 
         public ProvinceSeed ToSeed() =>
             new(_provinceId, _displayName, _hasFort, _neighbours, _startingOwnerId, _startingUnits,
-                _startingMissionaries, _hasStartingChurch, _startingRebellionCellOwnerId);
+                _startingMissionaries, _hasStartingChurch, _startingRebellionCellOwnerId,
+                _startingTraders, _tradingPostOwnerId);
 
         public void ShowState(ProvinceState province, Color ownerColor, bool hasOwner)
         {
@@ -82,6 +87,12 @@ namespace Presentation.Map
                         ? OpenRebellionTint
                         : UndercoverCellTint;
                 }
+            }
+
+            if (_tradingPostBadge != null)
+            {
+                _tradingPostBadge.enabled = province.HasTradingPost;
+                _tradingPostBadge.color = TradingPostTint;
             }
 
             ApplyColor();

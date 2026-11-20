@@ -19,9 +19,9 @@ namespace Presentation.Prototype
         public int RegularUnits { get; }
         public int Missionaries { get; }
         public bool HasChurch { get; }
-
-        /// <summary>Player whose undercover Rebellion Cell starts here, or <see cref="NoRebellionCell"/>.</summary>
         public int RebellionCellOwnerId { get; }
+        public int Traders { get; }
+        public int TradingPostOwnerId { get; }
 
         public ProvinceSeed(
             int id,
@@ -32,7 +32,9 @@ namespace Presentation.Prototype
             int regularUnits,
             int missionaries = 0,
             bool hasChurch = false,
-            int rebellionCellOwnerId = NoRebellionCell)
+            int rebellionCellOwnerId = NoRebellionCell,
+            int traders = 0,
+            int tradingPostOwnerId = ProvinceState.NoTradingPost)
         {
             Id = id;
             Name = name;
@@ -43,6 +45,8 @@ namespace Presentation.Prototype
             Missionaries = missionaries;
             HasChurch = hasChurch;
             RebellionCellOwnerId = rebellionCellOwnerId;
+            Traders = traders;
+            TradingPostOwnerId = tradingPostOwnerId;
         }
     }
 
@@ -54,12 +58,14 @@ namespace Presentation.Prototype
         public const int MilitantsPlayerId = 1;
         public const int ZealotsPlayerId = 2;
         public const int GuerrillasPlayerId = 3;
+        public const int GuildsPlayerId = 4;
 
         public static PlayerProfile[] CreatePlayers() => new[]
         {
             CreatePlayer(MilitantsPlayerId, FactionType.Militants),
             CreatePlayer(ZealotsPlayerId, FactionType.Zealots),
-            CreatePlayer(GuerrillasPlayerId, FactionType.Guerrillas)
+            CreatePlayer(GuerrillasPlayerId, FactionType.Guerrillas),
+            CreatePlayer(GuildsPlayerId, FactionType.Guilds)
         };
 
         public static List<ProvinceState> BuildProvinces(
@@ -72,7 +78,11 @@ namespace Presentation.Prototype
             {
                 var seed = seeds[i];
                 var faction = FactionOf(players, seed.OwnerId);
-                var units = new List<UnitInstance>(seed.RegularUnits + seed.Missionaries);
+                int startingTraders = seed.Traders == 0 && seed.TradingPostOwnerId == GuildsPlayerId
+                    ? 1
+                    : seed.Traders;
+
+                var units = new List<UnitInstance>(seed.RegularUnits + seed.Missionaries + startingTraders);
                 for (int u = 0; u < seed.RegularUnits; u++)
                 {
                     units.Add(new UnitInstance(nextUnitId++, seed.OwnerId, faction, UnitType.RegularMilitary, 1, 1));
@@ -83,12 +93,18 @@ namespace Presentation.Prototype
                     units.Add(new UnitInstance(nextUnitId++, seed.OwnerId, faction, UnitType.Missionary, 1, 1));
                 }
 
+                for (int u = 0; u < startingTraders; u++)
+                {
+                    units.Add(new UnitInstance(nextUnitId++, GuildsPlayerId, FactionType.Guilds, UnitType.Trader, 1,
+                        1));
+                }
+
                 var cell = seed.RebellionCellOwnerId == ProvinceSeed.NoRebellionCell
                     ? null
                     : new RebellionCell(seed.RebellionCellOwnerId, false);
 
                 provinces.Add(new ProvinceState(seed.Id, seed.Name, seed.HasFort, seed.Neighbours, seed.OwnerId, units,
-                    seed.HasChurch ? seed.OwnerId : ProvinceState.NoChurch, null, cell));
+                    seed.HasChurch ? seed.OwnerId : ProvinceState.NoChurch, null, cell, seed.TradingPostOwnerId));
             }
 
             return provinces;

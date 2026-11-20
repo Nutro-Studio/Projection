@@ -75,10 +75,11 @@ namespace Tests.Editor
         {
             var players = PrototypeSetup.CreatePlayers();
 
-            Assert.AreEqual(3, players.Length);
+            Assert.AreEqual(4, players.Length);
             Assert.AreEqual(FactionType.Militants, players[0].Faction);
             Assert.AreEqual(FactionType.Zealots, players[1].Faction);
             Assert.AreEqual(FactionType.Guerrillas, players[2].Faction);
+            Assert.AreEqual(FactionType.Guilds, players[3].Faction);
             Assert.AreEqual(PrototypeSetup.GuerrillasPlayerId, players[2].PlayerId);
         }
 
@@ -142,7 +143,7 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void TurnOrder_PassesThroughAllThreeFactions()
+        public void TurnOrder_PassesThroughAllFourFactions()
         {
             var session = CreateSession();
 
@@ -150,6 +151,8 @@ namespace Tests.Editor
             Assert.AreEqual(PrototypeSetup.ZealotsPlayerId, session.CurrentPlayer.PlayerId);
             session.EndTurn();
             Assert.AreEqual(PrototypeSetup.GuerrillasPlayerId, session.CurrentPlayer.PlayerId);
+            session.EndTurn();
+            Assert.AreEqual(PrototypeSetup.GuildsPlayerId, session.CurrentPlayer.PlayerId);
             session.EndTurn();
             Assert.AreEqual(PrototypeSetup.MilitantsPlayerId, session.CurrentPlayer.PlayerId);
             Assert.AreEqual(2, session.TurnNumber);

@@ -245,6 +245,37 @@ namespace Presentation.Hud
                 }
             }
 
+            // 1b. Embargo & Caravan Raiding against co-existing Guild Traders
+            if (player.Faction != FactionType.Guilds)
+            {
+                for (int i = 0; i < province.Units.Count; i++)
+                {
+                    var u = province.Units[i];
+                    if (u.Type != UnitType.Trader || u.OwnerPlayerId == player.PlayerId) continue;
+
+                    int guildId = u.OwnerPlayerId;
+                    var guildPlayer = _session.GetPlayer(guildId);
+                    if (guildPlayer == null) continue;
+
+                    if (!_session.IsEmbargoedBy(player.PlayerId, guildId))
+                    {
+                        AddActionButton(
+                            HudText.EmbargoButton(guildPlayer),
+                            hasAp,
+                            () => _interaction.DeclareEmbargo(guildId));
+                    }
+                    else if (hasOwnMilitary)
+                    {
+                        AddActionButton(
+                            HudText.RaidCaravanButton(guildPlayer),
+                            hasAp,
+                            () => _interaction.RaidCaravan(guildId));
+                    }
+
+                    break;
+                }
+            }
+
             // 2. Faction-Specific & Counter-Action Buttons
             switch (player.Faction)
             {
@@ -312,10 +343,62 @@ namespace Presentation.Hud
                     break;
 
                 case FactionType.Guilds:
+                    var traders = _session.GetUnitsForPlayer(selectedProvinceId, player.PlayerId, UnitType.Trader);
+                    bool hasTrader = traders.Count > 0;
+                    bool hasReadyTrader = false;
+                    for (int i = 0; i < traders.Count; i++)
+                    {
+                        if (!traders[i].HasActed) hasReadyTrader = true;
+                    }
+
                     AddActionButton(
                         HudText.BuyTraderButton(),
-                        hasAp && isOwnProvince && player.Gold >= PrototypeGameSession.TraderCost,
+                        hasAp && (isOwnProvince || province.TradingPostOwnerId == player.PlayerId)
+                              && player.Gold >= PrototypeGameSession.TraderCost
+                              && _session.CountPlayerUnitsOfType(player.PlayerId, UnitType.Trader) <
+                              _session.CountOwnedTradingPosts(player.PlayerId),
                         _interaction.BuyTrader);
+
+                    AddActionButton(
+                        HudText.BuildTradingPostButton(),
+                        hasAp && hasTrader && !province.HasTradingPost
+                              && player.Gold >= PrototypeGameSession.TradingPostCost,
+                        _interaction.BuildTradingPost);
+
+                    if (_interaction.IsTargetingCaravan)
+                    {
+                        AddActionButton(
+                            HudText.ConfirmCaravanButton(_interaction.CaravanPath.Count),
+                            hasAp && _interaction.CaravanPath.Count >= 2,
+                            _interaction.ExecuteCaravan);
+                    }
+                    else
+                    {
+                        AddActionButton(
+                            HudText.CaravanNetworkButton(),
+                            hasAp && hasReadyTrader && province.HasTradingPost,
+                            _interaction.BeginCaravan);
+                    }
+
+                    if (province.OwnerId != ProvinceState.NeutralOwner && province.OwnerId != player.PlayerId)
+                    {
+                        int buyoutCost = _session.GetHostileBuyoutCost(selectedProvinceId);
+                        bool embargoed = _session.IsEmbargoedBy(province.OwnerId, player.PlayerId);
+                        AddActionButton(
+                            HudText.HostileBuyoutButton(buyoutCost),
+                            hasAp && hasTrader && !province.HasFort && !embargoed && player.Gold >= buyoutCost,
+                            _interaction.HostileBuyout);
+
+                        var ownerPlayer = _session.GetPlayer(province.OwnerId);
+                        if (ownerPlayer != null && (hasTrader || province.TradingPostOwnerId == player.PlayerId))
+                        {
+                            AddActionButton(
+                                HudText.SellMercenaryButton(ownerPlayer),
+                                hasAp && ownerPlayer.Gold >= PrototypeGameSession.DefaultMercenaryPrice,
+                                () => _interaction.SellMercenaryContract(ownerPlayer.PlayerId));
+                        }
+                    }
+
                     break;
             }
 

@@ -8,7 +8,8 @@ namespace Presentation.Hud
     public enum TargetingMode
     {
         None,
-        Move
+        Move,
+        Caravan
     }
 
     /// <summary>
@@ -19,6 +20,7 @@ namespace Presentation.Hud
         public const int NoSelection = -1;
 
         private readonly PrototypeGameSession _session;
+        private readonly List<int> _caravanPath = new();
         private int _unitsToMove = int.MaxValue;
 
         public event Action Changed;
@@ -29,6 +31,8 @@ namespace Presentation.Hud
         public CommandResult LastResult { get; private set; } = CommandResult.Ok;
 
         public bool IsTargetingMove => Targeting == TargetingMode.Move;
+        public bool IsTargetingCaravan => Targeting == TargetingMode.Caravan;
+        public IReadOnlyList<int> CaravanPath => _caravanPath;
 
         public int MovableUnitCount =>
             SelectedProvinceId == NoSelection ? 0 : GetFilteredMovableUnitIds(SelectedProvinceId).Count;
@@ -54,6 +58,13 @@ namespace Presentation.Hud
                 return;
             }
 
+            if (Targeting == TargetingMode.Caravan)
+            {
+                HandleCaravanWaypointClick(provinceId);
+                Changed?.Invoke();
+                return;
+            }
+
             int origin = SelectedProvinceId;
             Targeting = TargetingMode.None;
 
@@ -72,10 +83,94 @@ namespace Presentation.Hud
             Changed?.Invoke();
         }
 
+        private void HandleCaravanWaypointClick(int provinceId)
+        {
+            int lastNode = _caravanPath[_caravanPath.Count - 1];
+            if (provinceId == lastNode && _caravanPath.Count >= 2)
+            {
+                ExecuteCaravan();
+                return;
+            }
+
+            if (!_caravanPath.Contains(provinceId) && _session.Provinces[lastNode].IsAdjacentTo(provinceId))
+            {
+                _caravanPath.Add(provinceId);
+                return;
+            }
+
+            LastResult = CommandResult.NotAdjacent;
+        }
+
+        public void BeginCaravan()
+        {
+            if (SelectedProvinceId == NoSelection) return;
+
+            _caravanPath.Clear();
+            _caravanPath.Add(SelectedProvinceId);
+            Targeting = TargetingMode.Caravan;
+            Changed?.Invoke();
+        }
+
+        public void ExecuteCaravan()
+        {
+            if (_caravanPath.Count < 2)
+            {
+                CancelTargeting();
+                return;
+            }
+
+            int destination = _caravanPath[_caravanPath.Count - 1];
+            LastResult = _session.RunCaravan(_caravanPath);
+            _caravanPath.Clear();
+            Targeting = TargetingMode.None;
+            if (LastResult == CommandResult.Ok)
+            {
+                Select(destination);
+            }
+
+            Changed?.Invoke();
+        }
+
+        public void BuildTradingPost()
+        {
+            if (SelectedProvinceId == NoSelection) return;
+            LastResult = _session.BuildTradingPost(SelectedProvinceId);
+            Changed?.Invoke();
+        }
+
+        public void HostileBuyout()
+        {
+            if (SelectedProvinceId == NoSelection) return;
+            LastResult = _session.HostileBuyout(SelectedProvinceId);
+            Changed?.Invoke();
+        }
+
+        public void DeclareEmbargo(int guildPlayerId)
+        {
+            if (SelectedProvinceId == NoSelection) return;
+            LastResult = _session.DeclareEmbargo(guildPlayerId);
+            Changed?.Invoke();
+        }
+
+        public void RaidCaravan(int guildPlayerId)
+        {
+            if (SelectedProvinceId == NoSelection) return;
+            LastResult = _session.RaidCaravan(SelectedProvinceId, guildPlayerId);
+            Changed?.Invoke();
+        }
+
+        public void SellMercenaryContract(int buyerPlayerId)
+        {
+            if (SelectedProvinceId == NoSelection) return;
+            LastResult = _session.SellMercenaryContract(SelectedProvinceId, buyerPlayerId);
+            Changed?.Invoke();
+        }
+
         public void ClickEmptySpace()
         {
             LastResult = CommandResult.Ok;
             Targeting = TargetingMode.None;
+            _caravanPath.Clear();
             Select(NoSelection);
             Changed?.Invoke();
         }
@@ -85,6 +180,7 @@ namespace Presentation.Hud
             if (Targeting == TargetingMode.None) return;
 
             Targeting = TargetingMode.None;
+            _caravanPath.Clear();
             Changed?.Invoke();
         }
 
@@ -243,14 +339,27 @@ namespace Presentation.Hud
         {
             LastResult = _session.EndTurn();
             Targeting = TargetingMode.None;
+            _caravanPath.Clear();
             Select(NoSelection);
             Changed?.Invoke();
         }
 
-        public bool IsValidMoveTarget(int provinceId) =>
-            Targeting != TargetingMode.None
-            && provinceId != SelectedProvinceId
-            && _session.Provinces[SelectedProvinceId].IsAdjacentTo(provinceId);
+        public bool IsValidMoveTarget(int provinceId)
+        {
+            if (Targeting == TargetingMode.Move)
+            {
+                return provinceId != SelectedProvinceId
+                       && _session.Provinces[SelectedProvinceId].IsAdjacentTo(provinceId);
+            }
+
+            if (Targeting == TargetingMode.Caravan && _caravanPath.Count > 0)
+            {
+                int tail = _caravanPath[_caravanPath.Count - 1];
+                return !_caravanPath.Contains(provinceId) && _session.Provinces[tail].IsAdjacentTo(provinceId);
+            }
+
+            return false;
+        }
 
         private void Select(int provinceId)
         {
