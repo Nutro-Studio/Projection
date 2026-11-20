@@ -11,6 +11,9 @@ namespace Presentation.Map
         private const float TargetScale = 1.06f;
         private const float TargetLighten = 0.35f;
 
+        // The banner sits on the owner's own hexagon, so it needs a darker shade to stay visible.
+        private const float BannerDarken = 0.45f;
+
         private static readonly Color ChurchTint = new(1f, 0.88f, 0.35f, 1f);
         private static readonly Color PresenceTint = new(0.45f, 0.85f, 1f, 1f);
         private static readonly Color UndercoverCellTint = new(0.25f, 0.75f, 0.35f, 0.55f);
@@ -63,7 +66,7 @@ namespace Presentation.Map
             _unitCount.text = province.Units.Count.ToString();
             _fortBadge.enabled = province.HasFort;
             _ownerBanner.enabled = hasOwner;
-            _ownerBanner.color = ownerColor;
+            _ownerBanner.color = Color.Lerp(ownerColor, Color.black, BannerDarken);
 
             if (_churchBadge != null)
             {
