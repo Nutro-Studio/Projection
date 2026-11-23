@@ -282,6 +282,11 @@ namespace Presentation.Hud
             {
                 case FactionType.Militants:
                     AddActionButton(
+                        HudText.BuildFortButton(),
+                        hasAp && isOwnProvince && !province.HasFort && player.Gold >= PrototypeGameSession.FortCost,
+                        _interaction.BuildFort);
+                    
+                    AddActionButton(
                         HudText.BuyButton(),
                         hasAp && isOwnProvince && player.Gold >= PrototypeGameSession.UnitCost,
                         _interaction.BuyUnit);

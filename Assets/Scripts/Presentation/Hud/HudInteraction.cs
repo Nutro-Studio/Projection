@@ -256,6 +256,14 @@ namespace Presentation.Hud
             Changed?.Invoke();
         }
 
+        public void BuildFort()
+        {
+            if (SelectedProvinceId == NoSelection) return;
+
+            LastResult = _session.BuildFort(SelectedProvinceId);
+            Changed?.Invoke();
+        }
+
         public void BuildChurch()
         {
             if (SelectedProvinceId == NoSelection) return;

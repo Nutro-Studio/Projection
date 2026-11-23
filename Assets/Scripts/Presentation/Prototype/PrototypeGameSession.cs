@@ -29,6 +29,11 @@ namespace Presentation.Prototype
         public const int HostileBuyoutUnitPremium = 2;
         public const int HostileBuyoutBuildingPremium = 2;
         public const int DefaultMercenaryPrice = 4;
+        public const int FortCost = 5;
+        public const int BuildFortVp = 1;
+        public const int CaptureOrCrushRebellionVp = 2;
+        public const int BuildChurchVp = 2;
+        public const int DefendRebellionVp = 2;
 
         private readonly IGameRules _rules;
         private readonly bool _crisisEnabled;
@@ -247,6 +252,25 @@ namespace Presentation.Prototype
             return Recruit(provinceId, TraderCost, UnitType.Trader);
         }
 
+        public CommandResult BuildFort(int provinceId)
+        {
+            var check = ValidateOwnProvinceAction(provinceId);
+            if (check != CommandResult.Ok) return check;
+
+            var province = _provinces[provinceId];
+            var player = CurrentPlayer;
+            if (player.Faction != FactionType.Militants) return CommandResult.WrongFaction;
+            if (province.HasFort) return CommandResult.AlreadyBuilt;
+            if (player.Gold < FortCost) return CommandResult.NotEnoughGold;
+
+            SetProvince(province.WithFort(true));
+            AddGold(_currentPlayerIndex, -FortCost);
+            AddVictoryPoints(_currentPlayerIndex, BuildFortVp);
+            SpendActionPoint();
+            StateChanged?.Invoke();
+            return CommandResult.Ok;
+        }
+
         public CommandResult BuildChurch(int provinceId)
         {
             var check = ValidateOwnProvinceAction(provinceId);
@@ -260,6 +284,7 @@ namespace Presentation.Prototype
 
             SetProvince(province.WithChurch(player.PlayerId));
             AddGold(_currentPlayerIndex, -ChurchCost);
+            AddVictoryPoints(_currentPlayerIndex, BuildChurchVp);
             SpendActionPoint();
             StateChanged?.Invoke();
             return CommandResult.Ok;
@@ -396,7 +421,7 @@ namespace Presentation.Prototype
 
         /// <summary>
         /// Militant counter to Guerrillas: removes an open Rebellion from a province where Militants hold presence.
-        /// Undercover cells cannot be targeted until they rise.
+        /// Undercover cells cannot be targeted until they rise. Awards +2 VP to Militants.
         /// </summary>
         public CommandResult MartialLaw(int provinceId)
         {
@@ -410,6 +435,7 @@ namespace Presentation.Prototype
             }
 
             SetProvince(province.WithRebellionCell(null));
+            AddVictoryPoints(_currentPlayerIndex, CaptureOrCrushRebellionVp);
             SpendActionPoint();
             StateChanged?.Invoke();
             return CommandResult.Ok;
@@ -511,6 +537,7 @@ namespace Presentation.Prototype
 
         /// <summary>
         /// Dedicated Battle Action: expends 1 AP to attack a specific co-existing enemy player in a province.
+        /// Awards +2 VP to Militants on capture and +2 VP to Guerrillas on successful defense of a rebellion zone.
         /// </summary>
         public CommandResult InitiateBattle(int provinceId, int defenderPlayerId)
         {
@@ -524,6 +551,7 @@ namespace Presentation.Prototype
             if (defender == null) return CommandResult.InvalidBattleTarget;
 
             var province = _provinces[provinceId];
+            int previousOwnerId = province.OwnerId;
             var attackers = GetUnitsForPlayer(provinceId, attacker.PlayerId, UnitType.RegularMilitary);
             if (attackers.Count == 0) return CommandResult.NoMilitaryUnits;
 
@@ -562,14 +590,35 @@ namespace Presentation.Prototype
             SetProvince(province.WithUnits(updatedUnits));
             SpendActionPoint();
 
-            bool attackerHoldsHegemony = _provinces[provinceId].OwnerId == attacker.PlayerId;
+            var postBattleProvince = _provinces[provinceId];
+            bool attackerHoldsHegemony = postBattleProvince.OwnerId == attacker.PlayerId;
+            bool provinceCaptured = captured || (previousOwnerId != attacker.PlayerId && attackerHoldsHegemony);
+
+            if (provinceCaptured && attacker.Faction == FactionType.Militants)
+            {
+                AddVictoryPoints(_currentPlayerIndex, CaptureOrCrushRebellionVp);
+            }
+
+            if (!provinceCaptured
+                && result.AttackerMustRetreat
+                && defender.Faction == FactionType.Guerrillas
+                && postBattleProvince.RebellionCell != null
+                && postBattleProvince.RebellionCell.OwnerId == defenderPlayerId)
+            {
+                int defenderIndex = IndexOfPlayer(defenderPlayerId);
+                if (defenderIndex >= 0)
+                {
+                    AddVictoryPoints(defenderIndex, DefendRebellionVp);
+                }
+            }
+
             BattleResolved?.Invoke(new BattleReport(
                 province.Name,
                 attacker.PlayerId,
                 defenderPlayerId,
                 attackers.Count,
                 defenders.Count,
-                captured || attackerHoldsHegemony,
+                provinceCaptured,
                 result));
 
             StateChanged?.Invoke();
@@ -583,9 +632,7 @@ namespace Presentation.Prototype
             var player = CurrentPlayer;
             int controlled = CountProvinces(player.PlayerId);
             int gold = player.Gold + _rules.CalculateRevenue(player.Faction, controlled);
-            int vpGain = player.Faction == FactionType.Guilds
-                ? CalculateGuildVictoryPoints(player.PlayerId, gold)
-                : controlled * VictoryPointsPerProvince;
+            int vpGain = CalculateTurnEndVictoryPoints(player, controlled, gold);
             int victoryPoints = player.VictoryPoints + vpGain;
 
             var beforeRules = CopyProfile(player, player.Faction, gold, victoryPoints,
@@ -632,6 +679,34 @@ namespace Presentation.Prototype
                 var p = _provinces[i];
                 bool hasPlayerCell = p.RebellionCell != null && p.RebellionCell.OwnerId == playerId;
                 if (hasPlayerCell || p.OwnerId == playerId)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        public int CountPresenceProvinces(int playerId)
+        {
+            int count = 0;
+            for (int i = 0; i < _provinces.Length; i++)
+            {
+                if (_provinces[i].PresenceToken != null && _provinces[i].PresenceToken.OwnerId == playerId)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        public int CountActiveRebellionProvinces(int playerId)
+        {
+            int count = 0;
+            for (int i = 0; i < _provinces.Length; i++)
+            {
+                if (_provinces[i].RebellionCell != null && _provinces[i].RebellionCell.OwnerId == playerId)
                 {
                     count++;
                 }
@@ -868,6 +943,16 @@ namespace Presentation.Prototype
                 }
             }
         }
+
+        private int CalculateTurnEndVictoryPoints(PlayerProfile player, int controlledProvinces, int bankedGold) =>
+            player.Faction switch
+            {
+                FactionType.Militants => controlledProvinces / 3,
+                FactionType.Zealots => CountPresenceProvinces(player.PlayerId),
+                FactionType.Guilds => CalculateGuildVictoryPoints(player.PlayerId, bankedGold),
+                FactionType.Guerrillas => CountActiveRebellionProvinces(player.PlayerId),
+                _ => controlledProvinces * VictoryPointsPerProvince
+            };
 
         private int CalculateGuildVictoryPoints(int playerId, int bankedGold)
         {
@@ -1139,6 +1224,16 @@ namespace Presentation.Prototype
             _players[playerIndex] = player with { Gold = player.Gold + amount };
         }
 
+        private void AddVictoryPoints(int playerIndex, int amount)
+        {
+            var player = _players[playerIndex];
+            _players[playerIndex] = player with { VictoryPoints = Math.Max(0, player.VictoryPoints + amount) };
+            if (_players[playerIndex].VictoryPoints >= CrisisDirector.VictoryPointsThreshold)
+            {
+                IsGameOver = true;
+            }
+        }
+
         private void SpendActionPoint()
         {
             var player = CurrentPlayer;
@@ -1227,49 +1322,6 @@ namespace Presentation.Prototype
             }
 
             return enemyIds;
-        }
-
-        private void ApplyShiftResult(CrisisShiftResult shift)
-        {
-            _players[_currentPlayerIndex] = shift.UpdatedProfile with
-            {
-                ActionPoints = CurrentPlayer.ActionPoints - 1
-            };
-
-            if (shift.PreviousFaction == FactionType.Militants && shift.IsVoluntary)
-            {
-                var survivingIds = new HashSet<int>();
-                for (int i = 0; i < shift.UpdatedProfile.Units.Count; i++)
-                {
-                    survivingIds.Add(shift.UpdatedProfile.Units[i].Id);
-                }
-
-                for (int p = 0; p < _provinces.Length; p++)
-                {
-                    var province = _provinces[p];
-                    var kept = new List<UnitInstance>(province.Units.Count);
-                    for (int u = 0; u < province.Units.Count; u++)
-                    {
-                        var unit = province.Units[u];
-                        if (unit.OwnerPlayerId != shift.UpdatedProfile.PlayerId || survivingIds.Contains(unit.Id))
-                        {
-                            kept.Add(unit);
-                        }
-                    }
-
-                    if (kept.Count != province.Units.Count)
-                    {
-                        SetProvince(province.WithUnits(kept));
-                    }
-                }
-            }
-
-            if (_players[_currentPlayerIndex].VictoryPoints >= CrisisDirector.VictoryPointsThreshold)
-            {
-                IsGameOver = true;
-            }
-
-            StateChanged?.Invoke();
         }
 
         /// <summary>

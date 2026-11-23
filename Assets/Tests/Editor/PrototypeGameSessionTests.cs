@@ -427,13 +427,88 @@ namespace Tests.Editor
 
             Assert.AreEqual(Defender, session.CurrentPlayer.PlayerId);
             Assert.AreEqual(PrototypeGameSession.StartingGold + 1, session.GetPlayer(Attacker).Gold);
-            Assert.AreEqual(1, session.GetPlayer(Attacker).VictoryPoints);
+            Assert.AreEqual(0, session.GetPlayer(Attacker).VictoryPoints);
             Assert.AreEqual(1, session.TurnNumber);
 
             session.EndTurn();
 
             Assert.AreEqual(Attacker, session.CurrentPlayer.PlayerId);
             Assert.AreEqual(2, session.TurnNumber);
+        }
+
+        [Test]
+        public void MilitantScoring_AwardsPerThreeProvinces_FortBuild_Capture_AndCrushedRebellion()
+        {
+            var session = CreateSession(middleOwner: Attacker);
+            _dice.AttackerRoll = (3, 2, 2);
+            _dice.DefenderRoll = (1, 1, 1);
+
+            // 1. Build Fort (+1 VP, 1 AP)
+            Assert.AreEqual(CommandResult.Ok, session.BuildFort(AttackerHome));
+            Assert.AreEqual(1, session.GetPlayer(Attacker).VictoryPoints);
+            Assert.AreEqual(PrototypeGameSession.StartingGold - PrototypeGameSession.FortCost,
+                session.CurrentPlayer.Gold);
+
+            // 2. Recruit 1 unit (2 total at AttackerHome) and move both into DefenderHome (2 AP)
+            session.BuyUnit(AttackerHome);
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+
+            // 3. Capture DefenderHome -> 3 controlled provinces + 2 VP for capture (1 AP)
+            Assert.AreEqual(CommandResult.Ok, session.InitiateBattle(DefenderHome, Defender));
+            Assert.AreEqual(3, session.GetPlayer(Attacker).VictoryPoints);
+
+            // 4. EndTurn with 3 controlled provinces -> +1 VP (3 / 3 = 1)
+            session.EndTurn();
+            Assert.AreEqual(4, session.GetPlayer(Attacker).VictoryPoints);
+        }
+
+        [Test]
+        public void MilitantScoring_CrushingOpenRebellion_AwardsTwoVp()
+        {
+            var session = CreateSession(defenderFaction: FactionType.Guerrillas);
+            session.EndTurn();
+            session.PlaceRebellionCell(AttackerHome);
+            session.InciteRebellion(AttackerHome);
+            session.EndTurn();
+
+            Assert.AreEqual(CommandResult.Ok, session.MartialLaw(AttackerHome));
+            Assert.AreEqual(2, session.GetPlayer(Attacker).VictoryPoints);
+        }
+
+        [Test]
+        public void ZealotScoring_AwardsChurchConstruction_AndUpkeepPresenceTokens()
+        {
+            var session = CreateZealotSession();
+            Assert.AreEqual(CommandResult.Ok, session.BuildChurch(AttackerHome));
+            Assert.AreEqual(2, session.GetPlayer(Attacker).VictoryPoints);
+
+            session.BuyMissionary(AttackerHome);
+            session.Consecrate(AttackerHome);
+            session.EndTurn();
+
+            // 2 VP (Church) + 1 VP (1 Religious Presence token at upkeep) = 3 VP
+            Assert.AreEqual(3, session.GetPlayer(Attacker).VictoryPoints);
+        }
+
+        [Test]
+        public void GuerrillaScoring_AwardsActiveRebellionProvinces_AndDefendingRebellionZone()
+        {
+            var session = CreateSession(attackerFaction: FactionType.Militants,
+                defenderFaction: FactionType.Guerrillas);
+            session.EndTurn();
+            session.PlaceRebellionCell(DefenderHome);
+            session.InciteRebellion(DefenderHome);
+            session.EndTurn();
+
+            // Guerrillas earned +1 VP at the end of their turn for 1 active rebellion province
+            Assert.AreEqual(1, session.GetPlayer(Defender).VictoryPoints);
+
+            // Militants attack DefenderHome and lose -> Guerrillas earn +2 VP for defending rebellion zone
+            _dice.AttackerRoll = (1, 1, 1);
+            _dice.DefenderRoll = (3, 3, 3);
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+            Assert.AreEqual(CommandResult.Ok, session.InitiateBattle(DefenderHome, Defender));
+            Assert.AreEqual(3, session.GetPlayer(Defender).VictoryPoints);
         }
 
         [Test]
@@ -464,10 +539,14 @@ namespace Tests.Editor
         [Test]
         public void EndTurn_ReachingFiftyVictoryPoints_EndsGame()
         {
-            var session = CreateSession(attackerVictoryPoints: 49);
+            var session = CreateSession(attackerVictoryPoints: 49, middleOwner: Attacker);
+            session.BuyUnit(AttackerHome);
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+            _dice.AttackerRoll = (3, 2, 2);
+            _dice.DefenderRoll = (1, 1, 1);
+            session.InitiateBattle(DefenderHome, Defender);
 
-            session.EndTurn();
-
+            // 49 starting VP + 2 VP capture = 51 VP >= 50 threshold
             Assert.IsTrue(session.IsGameOver);
             Assert.AreEqual(CommandResult.GameOver, session.BuyUnit(AttackerHome));
             Assert.AreEqual(CommandResult.GameOver, session.EndTurn());

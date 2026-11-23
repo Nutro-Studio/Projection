@@ -149,6 +149,8 @@ namespace Presentation.Hud
 
         public static string BuyTraderButton() => $"Buy Trader ({PrototypeGameSession.TraderCost}G)";
 
+        public static string BuildFortButton() => $"Build Fort ({PrototypeGameSession.FortCost}G)";
+
         public static string BuildChurchButton() => $"Build Church ({PrototypeGameSession.ChurchCost}G)";
 
         public static string ConsecrateButton() => "Consecrate";
@@ -182,6 +184,7 @@ namespace Presentation.Hud
             isAscension ? $"Ascend -> {Faction(target)}" : $"Shift -> {Faction(target)}";
 
         public static string CapitulateButton() => "Capitulate -> Guerrillas";
+
         public static string ProvinceTitle(ProvinceState province) =>
             string.IsNullOrWhiteSpace(province.Name) ? $"Province #{province.Id}" : province.Name;
 
