@@ -418,6 +418,7 @@ namespace Tests.Editor
             session.EndTurn();
             session.PlaceRebellionCell(DefenderHome);
             session.InciteRebellion(DefenderHome);
+            session.PlaceRebellionCell(NeutralLand); // Undercover cell must not award upkeep VP
             session.EndTurn();
 
             // Guerrillas earned +1 VP at the end of their turn for 1 active rebellion province
@@ -429,6 +430,22 @@ namespace Tests.Editor
             MoveAllMovable(session, AttackerHome, DefenderHome);
             Assert.AreEqual(ActionResult.Ok, session.InitiateBattle(DefenderHome, Defender));
             Assert.AreEqual(3, session.GetPlayer(Defender).VictoryPoints);
+        }
+        
+        [Test]
+        public void Inquisition_PurgesReligiousPresenceToken_AndEnemyMissionaries()
+        {
+            var session = CreateSession(defenderUnits: 0, defenderPresence: true);
+            session.EndTurn();
+            session.BuyMissionary(DefenderHome);
+            session.EndTurn();
+
+            MoveAllMovable(session, AttackerHome, DefenderHome);
+
+            Assert.AreEqual(ActionResult.Ok, session.Inquisition(DefenderHome));
+
+            Assert.IsNull(session.Provinces[DefenderHome].PresenceToken);
+            Assert.AreEqual(0, session.GetUnitsForPlayer(DefenderHome, Defender, UnitType.Missionary).Count);
         }
 
         [Test]
@@ -847,17 +864,38 @@ namespace Tests.Editor
             _dice.AttackerRoll = (3, 3, 3);
             _dice.DefenderRoll = (0, 0, 0);
 
-            Assert.AreEqual(ActionResult.Ok, session.DivineConversion(DefenderHome));
+            Assert.AreEqual(ActionResult.Ok, session.DivineConversion(DefenderHome, missionaryCount: 2));
 
             var zealotMilitary = session.GetUnitsForPlayer(DefenderHome, Attacker, UnitType.RegularMilitary);
             var zealotMissionaries = session.GetUnitsForPlayer(DefenderHome, Attacker, UnitType.Missionary);
             var defenderMilitary = session.GetUnitsForPlayer(DefenderHome, Defender, UnitType.RegularMilitary);
 
-            Assert.AreEqual(3, zealotMilitary.Count, "2 missionaries + 1 cap = 3 enemy soldiers converted.");
-            Assert.AreEqual(1, zealotMissionaries.Count, "1 missionary expended, 1 remains.");
+            Assert.AreEqual(3, zealotMilitary.Count, "2 missionaries + 1 = 3 enemy soldiers converted.");
+            Assert.AreEqual(0, zealotMissionaries.Count, "Both chosen missionaries are expended.");
             Assert.AreEqual(1, defenderMilitary.Count, "1 defender remains; zero casualties inflicted.");
             Assert.AreEqual(FactionType.Militants, zealotMilitary[0].OriginalFaction);
             Assert.IsTrue(zealotMilitary[0].HasActed);
+        }
+
+        [Test]
+        public void DivineConversion_SingleMissionary_CapsAtTwo_AndRejectsOversizedSelection()
+        {
+            var session = CreateZealotSession(defenderUnits: 4);
+            session.BuyMissionary(AttackerHome);
+            int missionaryId = session.Provinces[AttackerHome].Units[1].Id;
+            Move(session, AttackerHome, DefenderHome, missionaryId);
+            session.EndTurn();
+            session.EndTurn();
+
+            _dice.AttackerRoll = (3, 3, 3);
+            _dice.DefenderRoll = (0, 0, 0);
+
+            Assert.AreEqual(ActionResult.InvalidUnitSelection,
+                session.DivineConversion(DefenderHome, missionaryCount: 2));
+            Assert.AreEqual(ActionResult.Ok, session.DivineConversion(DefenderHome, missionaryCount: 1));
+
+            Assert.AreEqual(2, session.GetUnitsForPlayer(DefenderHome, Attacker, UnitType.RegularMilitary).Count);
+            Assert.AreEqual(2, session.GetUnitsForPlayer(DefenderHome, Defender, UnitType.RegularMilitary).Count);
         }
 
         [Test]
@@ -886,9 +924,9 @@ namespace Tests.Editor
             var session = CreateZealotSession(defenderUnits: 3, defenderChurchOwner: Attacker);
 
             session.EndTurn();
+            session.EndTurn();
 
-            Assert.AreEqual(Defender, session.CurrentPlayer.PlayerId);
-            Assert.AreEqual(GameSession.StartingGold - 3, session.CurrentPlayer.Gold);
+            Assert.AreEqual(GameSession.StartingGold - 3, session.GetPlayer(Defender).Gold);
             Assert.AreEqual(GameSession.StartingGold + 1 + 3, session.GetPlayer(Attacker).Gold);
             Assert.AreEqual(3, session.Provinces[DefenderHome].Units.Count);
         }
@@ -898,6 +936,7 @@ namespace Tests.Editor
         {
             var session = CreateZealotSession(defenderUnits: 3, defenderGold: 1, defenderChurchOwner: Attacker);
 
+            session.EndTurn();
             session.EndTurn();
 
             Assert.AreEqual(0, session.CurrentPlayer.Gold);

@@ -30,6 +30,8 @@ namespace Core.Actions
         {
             if (_state.IsGameOver) return ActionResult.GameOver;
 
+            CollectChurchTithes();
+
             var player = _state.CurrentPlayer;
             int controlled = _state.CountProvinces(player.PlayerId);
             int revenue = _rulesets.TryGetValue(player.Faction, out var ruleset)
@@ -45,7 +47,7 @@ namespace Core.Actions
 
             int provincesForRules = _state.CrisisEnabled
                 ? controlled
-                : Math.Max(controlled, CrisisDirector.CrisisProvinceThreshold + 1);
+                : Math.Max(controlled, CrisisDirector.CrisisProvinceThreshold);
 
             var updated = EvaluatePlayerTurnState(beforeRules, provincesForRules);
             _state.Players[_state.CurrentPlayerIndex] = updated;
@@ -69,7 +71,6 @@ namespace Core.Actions
 
                 _state.Players[_state.CurrentPlayerIndex] =
                     _state.CurrentPlayer with { ActionPoints = PlayerProfile.BaseActionPoints };
-                CollectChurchTithes();
             }
 
             _state.NotifyStateChanged();
@@ -130,9 +131,8 @@ namespace Core.Actions
             int count = 0;
             for (int i = 0; i < _state.Provinces.Length; i++)
             {
-                var p = _state.Provinces[i];
-                bool hasPlayerCell = p.RebellionCell != null && p.RebellionCell.OwnerId == playerId;
-                if (hasPlayerCell || p.OwnerId == playerId) count++;
+                var cell = _state.Provinces[i].RebellionCell;
+                if (cell != null && cell.OwnerId == playerId) count++;
             }
 
             return count;
@@ -157,7 +157,8 @@ namespace Core.Actions
             int count = 0;
             for (int i = 0; i < _state.Provinces.Length; i++)
             {
-                if (_state.Provinces[i].RebellionCell != null && _state.Provinces[i].RebellionCell.OwnerId == playerId)
+                var cell = _state.Provinces[i].RebellionCell;
+                if (cell != null && cell.OwnerId == playerId && cell.IsOpenRebellion)
                 {
                     count++;
                 }

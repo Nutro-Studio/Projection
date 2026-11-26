@@ -281,12 +281,12 @@ namespace Presentation.Hud
             Changed?.Invoke();
         }
 
-        public void DivineConversion()
+        public void DivineConversion(int missionaryCount = 1)
         {
             if (SelectedProvinceId == NoSelection) return;
 
             Targeting = TargetingMode.None;
-            LastResult = _session.DivineConversion(SelectedProvinceId);
+            LastResult = _session.DivineConversion(SelectedProvinceId, missionaryCount);
             Changed?.Invoke();
         }
 

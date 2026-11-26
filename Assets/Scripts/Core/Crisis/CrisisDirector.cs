@@ -33,14 +33,14 @@ namespace Core.Crisis
         }
 
         /// <summary>
-        /// Landed factions reduced to &lt;= 3 provinces collapse into Guerrillas.
+        /// Landed factions reduced to &lt; 3 provinces collapse into Guerrillas.
         /// </summary>
         public bool CanTriggerCrisis(PlayerProfile player, int controlledProvinces)
         {
             if (player == null) throw new ArgumentNullException(nameof(player));
             if (!_rulesets.TryGetValue(player.Faction, out var ruleset)) return false;
 
-            return ruleset.IsLanded && controlledProvinces <= CrisisProvinceThreshold;
+            return ruleset.IsLanded && controlledProvinces < CrisisProvinceThreshold;
         }
 
         /// <summary>

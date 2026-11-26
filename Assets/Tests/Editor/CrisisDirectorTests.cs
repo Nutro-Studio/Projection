@@ -24,14 +24,14 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void CanTriggerCrisis_ReturnsTrue_WhenLandedFactionAtOrBelowThreeProvinces()
+        public void CanTriggerCrisis_ReturnsTrue_WhenLandedFactionBelowThreeProvinces()
         {
             var player = new PlayerProfile(1, FactionType.Militants, Gold: 10, VictoryPoints: 20,
                 new List<UnitInstance>());
 
-            Assert.IsTrue(_director.CanTriggerCrisis(player, controlledProvinces: 3));
             Assert.IsTrue(_director.CanTriggerCrisis(player, controlledProvinces: 2));
-            Assert.IsFalse(_director.CanTriggerCrisis(player, controlledProvinces: 4));
+            Assert.IsTrue(_director.CanTriggerCrisis(player, controlledProvinces: 1));
+            Assert.IsFalse(_director.CanTriggerCrisis(player, controlledProvinces: 3));
         }
 
         [Test]

@@ -294,7 +294,18 @@ namespace Presentation.Hud
                         AddActionButton(HudText.MartialLawButton(), hasAp, _interaction.MartialLaw);
                     }
 
-                    if (hasOwnMilitary && province.PresenceToken != null)
+                    bool hasEnemyMissionary = false;
+                    for (int i = 0; i < province.Units.Count; i++)
+                    {
+                        var u = province.Units[i];
+                        if (u.OwnerPlayerId != player.PlayerId && u.Type == UnitType.Missionary)
+                        {
+                            hasEnemyMissionary = true;
+                            break;
+                        }
+                    }
+
+                    if (hasOwnMilitary && (province.PresenceToken != null || hasEnemyMissionary))
                     {
                         AddActionButton(HudText.InquisitionButton(), hasAp, _interaction.Inquisition);
                     }
@@ -303,8 +314,9 @@ namespace Presentation.Hud
                     break;
 
                 case FactionType.Zealots:
-                    bool hasMissionary =
-                        _session.GetUnitsForPlayer(selectedProvinceId, player.PlayerId, UnitType.Missionary).Count > 0;
+                    int missionaryCount =
+                        _session.GetUnitsForPlayer(selectedProvinceId, player.PlayerId, UnitType.Missionary).Count;
+                    bool hasMissionary = missionaryCount > 0;
                     bool hasEnemyMilitary = _session.GetCoexistingEnemyIds(selectedProvinceId).Count > 0;
 
                     AddActionButton(
@@ -325,7 +337,7 @@ namespace Presentation.Hud
                     AddActionButton(
                         HudText.DivineConversionButton(),
                         hasAp && hasMissionary && hasEnemyMilitary,
-                        _interaction.DivineConversion);
+                        () => _interaction.DivineConversion(missionaryCount));
 
                     AddCleanseButtonIfApplicable(province, player.PlayerId, hasAp && hasOwnMilitary);
                     break;

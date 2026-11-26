@@ -96,16 +96,13 @@ namespace Core.Actions
             return ActionResult.Ok;
         }
 
-        public ActionResult DivineConversion(int provinceId)
+        public ActionResult DivineConversion(int provinceId, int missionaryCount = 1)
         {
             var check = ValidateAction(FactionType.Zealots);
             if (check != ActionResult.Ok) return check;
 
             var province = _state.Provinces[provinceId];
             var player = _state.CurrentPlayer;
-
-            int missionaryIndex = IndexOfPlayerUnitType(province.Units, player.PlayerId, UnitType.Missionary);
-            if (missionaryIndex < 0) return ActionResult.NoMissionary;
 
             int missionariesPresent = 0;
             int enemyMilitaryCount = 0;
@@ -122,22 +119,31 @@ namespace Core.Actions
                 }
             }
 
+            if (missionariesPresent == 0) return ActionResult.NoMissionary;
+            if (missionaryCount <= 0 || missionaryCount > missionariesPresent) return ActionResult.InvalidUnitSelection;
             if (enemyMilitaryCount == 0) return ActionResult.NoTargetUnits;
 
             var (z1, z2, z3) = _contestDice.Roll3D4();
             var (e1, e2, e3) = _contestDice.Roll3D4();
             int rollGain = Math.Max(0, (z1 + z2 + z3) - (e1 + e2 + e3));
-            int maxGain = missionariesPresent + 1;
+            int maxGain = missionaryCount + 1;
             int toConvert = Math.Min(Math.Min(rollGain, maxGain), enemyMilitaryCount);
 
-            var updatedUnits = new List<UnitInstance>(province.Units.Count - 1);
+            var updatedUnits = new List<UnitInstance>(province.Units.Count - missionaryCount);
+            int expendedSoFar = 0;
             int convertedSoFar = 0;
 
             for (int i = 0; i < province.Units.Count; i++)
             {
-                if (i == missionaryIndex) continue;
-
                 var unit = province.Units[i];
+                if (expendedSoFar < missionaryCount
+                    && unit.OwnerPlayerId == player.PlayerId
+                    && unit.Type == UnitType.Missionary)
+                {
+                    expendedSoFar++;
+                    continue;
+                }
+
                 if (convertedSoFar < toConvert
                     && unit.OwnerPlayerId != player.PlayerId
                     && unit.Type == UnitType.RegularMilitary)
@@ -214,9 +220,37 @@ namespace Core.Actions
             if (check != ActionResult.Ok) return check;
 
             var province = _state.Provinces[provinceId];
-            if (province.PresenceToken == null) return ActionResult.NothingToPurge;
+            int playerId = _state.CurrentPlayer.PlayerId;
 
-            _state.SetProvince(province.WithPresence(null));
+            bool hasPresence = province.PresenceToken != null;
+            bool hasEnemyMissionary = false;
+            for (int i = 0; i < province.Units.Count; i++)
+            {
+                var u = province.Units[i];
+                if (u.OwnerPlayerId != playerId && u.Type == UnitType.Missionary)
+                {
+                    hasEnemyMissionary = true;
+                    break;
+                }
+            }
+
+            if (!hasPresence && !hasEnemyMissionary) return ActionResult.NothingToPurge;
+
+            var updatedProvince = hasPresence ? province.WithPresence(null) : province;
+            if (hasEnemyMissionary)
+            {
+                var remaining = new List<UnitInstance>(updatedProvince.Units.Count);
+                for (int i = 0; i < updatedProvince.Units.Count; i++)
+                {
+                    var u = updatedProvince.Units[i];
+                    if (u.OwnerPlayerId != playerId && u.Type == UnitType.Missionary) continue;
+                    remaining.Add(u);
+                }
+
+                updatedProvince = updatedProvince.WithUnits(remaining);
+            }
+
+            _state.SetProvince(updatedProvince);
             _state.SpendActionPoint();
             _state.NotifyStateChanged();
             return ActionResult.Ok;

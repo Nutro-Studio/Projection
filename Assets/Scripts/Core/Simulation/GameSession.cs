@@ -170,7 +170,10 @@ namespace Core.Simulation
         public ActionResult BuildFort(int provinceId) => _factionActions.BuildFort(provinceId);
         public ActionResult BuildChurch(int provinceId) => _factionActions.BuildChurch(provinceId);
         public ActionResult Consecrate(int provinceId) => _factionActions.Consecrate(provinceId);
-        public ActionResult DivineConversion(int provinceId) => _factionActions.DivineConversion(provinceId);
+
+        public ActionResult DivineConversion(int provinceId, int missionaryCount = 1) =>
+            _factionActions.DivineConversion(provinceId, missionaryCount);
+
         public ActionResult PlaceRebellionCell(int provinceId) => _factionActions.PlaceRebellionCell(provinceId);
         public ActionResult InciteRebellion(int provinceId) => _factionActions.InciteRebellion(provinceId);
         public ActionResult MartialLaw(int provinceId) => _factionActions.MartialLaw(provinceId);
