@@ -1,17 +1,16 @@
+﻿using System.Collections.Generic;
 using Core.Combat;
+using Core.Crisis;
+using Core.Setup;
+using Core.Simulation;
 using Presentation.Hud;
 using Presentation.Map;
-using Presentation.Prototype;
 using UnityEngine;
 
 namespace Presentation
 {
-    /// <summary>
-    /// Composition root of the prototype scene.
-    /// </summary>
-    public class PrototypeGameBootstrap : MonoBehaviour
+    public class GameBootstrap : MonoBehaviour
     {
-        [SerializeField] private CombatCoordinator _coordinator;
         [SerializeField] private HudController _hud;
         [SerializeField] private MapInputController _mapInput;
         [SerializeField] private Camera _mapCamera;
@@ -23,12 +22,24 @@ namespace Presentation
 
         private void Start()
         {
-            var players = PrototypeSetup.CreatePlayers();
+            var rulesets = new Dictionary<FactionType, IFactionRuleset>
+            {
+                { FactionType.Militants, new MilitantRuleset() },
+                { FactionType.Zealots, new ZealotRuleset() },
+                { FactionType.Guerrillas, new GuerrillaRuleset() },
+                { FactionType.Guilds, new GuildRuleset() }
+            };
+
+            var diceRoller = new SystemRandomDiceRoller();
+            var combatService = new RootCombatService(diceRoller);
+            var crisisDirector = new CrisisDirector(rulesets);
+
+            var players = ContinentalMapBuilder.CreatePlayers();
             ProvinceSeed[] seeds;
 
             if (_useContinentalMap21)
             {
-                seeds = PrototypeSetup.CreateContinentalMap21();
+                seeds = ContinentalMapBuilder.CreateContinentalMap21();
                 EnsureContinentalViews(seeds);
                 _crisisEnabled = true;
             }
@@ -41,11 +52,12 @@ namespace Presentation
                 }
             }
 
-            var session = new PrototypeGameSession(new CoordinatorGameRules(_coordinator), players,
-                PrototypeSetup.BuildProvinces(seeds, players), _crisisEnabled);
+            var session = new GameSession(
+                combatService, crisisDirector, rulesets, diceRoller,
+                players, ContinentalMapBuilder.BuildProvinces(seeds, players), _crisisEnabled);
             var interaction = new HudInteraction(session);
 
-            _hud.Initialize(session, interaction, _coordinator);
+            _hud.Initialize(session, interaction, crisisDirector);
             _mapPresenter = new ProvinceMapPresenter(session, interaction, _provinceViews);
             _mapInput.Initialize(interaction, _hud, _mapCamera);
         }
@@ -54,21 +66,15 @@ namespace Presentation
         {
             if (_provinceViews == null || _provinceViews.Length == 0) return;
 
-            var positions = PrototypeSetup.CreateContinentalHexPositions21();
+            var positions = MapLayout.CreateContinentalHexPositions21();
             var views = new ProvinceView[seeds.Length];
             var template = _provinceViews[0];
 
             for (int i = 0; i < seeds.Length; i++)
             {
-                ProvinceView view;
-                if (i < _provinceViews.Length && _provinceViews[i] != null)
-                {
-                    view = _provinceViews[i];
-                }
-                else
-                {
-                    view = Instantiate(template, template.transform.parent);
-                }
+                ProvinceView view = (i < _provinceViews.Length && _provinceViews[i] != null)
+                    ? _provinceViews[i]
+                    : Instantiate(template, template.transform.parent);
 
                 view.name = $"Province_{i}";
                 view.transform.localPosition = new Vector3(positions[i].x, positions[i].y, 0f);

@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Core.Combat;
-using Presentation.Prototype;
+using Core.Simulation;
+using Core.Actions;
 
 namespace Presentation.Hud
 {
@@ -19,7 +20,7 @@ namespace Presentation.Hud
     {
         public const int NoSelection = -1;
 
-        private readonly PrototypeGameSession _session;
+        private readonly GameSession _session;
         private readonly List<int> _caravanPath = new();
         private int _unitsToMove = int.MaxValue;
 
@@ -28,7 +29,7 @@ namespace Presentation.Hud
         public int SelectedProvinceId { get; private set; } = NoSelection;
         public TargetingMode Targeting { get; private set; } = TargetingMode.None;
         public UnitType? MoveUnitTypeFilter { get; private set; }
-        public CommandResult LastResult { get; private set; } = CommandResult.Ok;
+        public ActionResult LastResult { get; private set; } = ActionResult.Ok;
 
         public bool IsTargetingMove => Targeting == TargetingMode.Move;
         public bool IsTargetingCaravan => Targeting == TargetingMode.Caravan;
@@ -42,14 +43,14 @@ namespace Presentation.Hud
         /// </summary>
         public int UnitsToMove => Math.Clamp(_unitsToMove, Math.Min(1, MovableUnitCount), MovableUnitCount);
 
-        public HudInteraction(PrototypeGameSession session)
+        public HudInteraction(GameSession session)
         {
             _session = session ?? throw new ArgumentNullException(nameof(session));
         }
 
         public void ClickProvince(int provinceId)
         {
-            LastResult = CommandResult.Ok;
+            LastResult = ActionResult.Ok;
 
             if (Targeting == TargetingMode.None)
             {
@@ -74,8 +75,8 @@ namespace Presentation.Hud
                 return;
             }
 
-            LastResult = _session.MoveArmy(new MoveArmyCommand(origin, provinceId, TakeUnitsToMove(origin)));
-            if (LastResult == CommandResult.Ok)
+            LastResult = _session.MoveArmy(new MoveUnitsCommand(origin, provinceId, TakeUnitsToMove(origin)));
+            if (LastResult == ActionResult.Ok)
             {
                 Select(provinceId);
             }
@@ -98,7 +99,7 @@ namespace Presentation.Hud
                 return;
             }
 
-            LastResult = CommandResult.NotAdjacent;
+            LastResult = ActionResult.NotAdjacent;
         }
 
         public void BeginCaravan()
@@ -123,7 +124,7 @@ namespace Presentation.Hud
             LastResult = _session.RunCaravan(_caravanPath);
             _caravanPath.Clear();
             Targeting = TargetingMode.None;
-            if (LastResult == CommandResult.Ok)
+            if (LastResult == ActionResult.Ok)
             {
                 Select(destination);
             }
@@ -168,7 +169,7 @@ namespace Presentation.Hud
 
         public void ClickEmptySpace()
         {
-            LastResult = CommandResult.Ok;
+            LastResult = ActionResult.Ok;
             Targeting = TargetingMode.None;
             _caravanPath.Clear();
             Select(NoSelection);
@@ -214,12 +215,12 @@ namespace Presentation.Hud
             if (SelectedProvinceId == NoSelection) return;
 
             LastResult = _session.ValidateMoveOrigin(SelectedProvinceId);
-            if (LastResult == CommandResult.Ok && MovableUnitCount == 0)
+            if (LastResult == ActionResult.Ok && MovableUnitCount == 0)
             {
-                LastResult = CommandResult.NoUnitsSelected;
+                LastResult = ActionResult.NoUnitsSelected;
             }
 
-            Targeting = LastResult == CommandResult.Ok ? TargetingMode.Move : TargetingMode.None;
+            Targeting = LastResult == ActionResult.Ok ? TargetingMode.Move : TargetingMode.None;
             Changed?.Invoke();
         }
 

@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using Core.Combat;
 using Core.Crisis;
-using Presentation.Prototype;
+using Core.Board;
+using Core.Simulation;
 
 namespace Presentation.Hud
 {
@@ -143,15 +144,15 @@ namespace Presentation.Hud
 
         public static string UnitsToMove(int unitsToMove, int movable) => $"{unitsToMove}/{movable}";
 
-        public static string BuyButton() => $"Buy Military ({PrototypeGameSession.UnitCost}G)";
+        public static string BuyButton() => $"Buy Military ({GameSession.UnitCost}G)";
 
-        public static string BuyMissionaryButton() => $"Buy Missionary ({PrototypeGameSession.MissionaryCost}G)";
+        public static string BuyMissionaryButton() => $"Buy Missionary ({GameSession.MissionaryCost}G)";
 
-        public static string BuyTraderButton() => $"Buy Trader ({PrototypeGameSession.TraderCost}G)";
+        public static string BuyTraderButton() => $"Buy Trader ({GameSession.TraderCost}G)";
 
-        public static string BuildFortButton() => $"Build Fort ({PrototypeGameSession.FortCost}G)";
+        public static string BuildFortButton() => $"Build Fort ({GameSession.FortCost}G)";
 
-        public static string BuildChurchButton() => $"Build Church ({PrototypeGameSession.ChurchCost}G)";
+        public static string BuildChurchButton() => $"Build Church ({GameSession.ChurchCost}G)";
 
         public static string ConsecrateButton() => "Consecrate";
 
@@ -167,7 +168,7 @@ namespace Presentation.Hud
 
         public static string CleanseButton() => "Cleanse Province";
 
-        public static string BuildTradingPostButton() => $"Trading Post ({PrototypeGameSession.TradingPostCost}G)";
+        public static string BuildTradingPostButton() => $"Trading Post ({GameSession.TradingPostCost}G)";
         public static string CaravanNetworkButton() => "Caravan Network";
         public static string ConfirmCaravanButton(int nodes) => $"Run Caravan ({nodes} nodes)";
         public static string HostileBuyoutButton(int cost) => $"Hostile Buyout ({cost}G)";
@@ -175,7 +176,7 @@ namespace Presentation.Hud
         public static string RaidCaravanButton(PlayerProfile guild) => $"Raid P{guild.PlayerId} Caravan";
 
         public static string SellMercenaryButton(PlayerProfile buyer) =>
-            $"Sell Mercenary to P{buyer.PlayerId} ({PrototypeGameSession.DefaultMercenaryPrice}G)";
+            $"Sell Mercenary to P{buyer.PlayerId} ({GameSession.DefaultMercenaryPrice}G)";
 
         public static string AttackButton(PlayerProfile enemy) =>
             $"Attack P{enemy.PlayerId} ({Faction(enemy.Faction)})";
@@ -188,34 +189,34 @@ namespace Presentation.Hud
         public static string ProvinceTitle(ProvinceState province) =>
             string.IsNullOrWhiteSpace(province.Name) ? $"Province #{province.Id}" : province.Name;
 
-        public static string Command(CommandResult result) => result switch
+        public static string Command(ActionResult result) => result switch
         {
-            CommandResult.Ok => string.Empty,
-            CommandResult.GameOver => "The game is over.",
-            CommandResult.NotYourProvince => "This province is not yours.",
-            CommandResult.NoUnits => "There are no units here.",
-            CommandResult.NotEnoughGold => "Not enough gold.",
-            CommandResult.NotAdjacent => "You can only target an adjacent province.",
-            CommandResult.UnitsAlreadyMoved => "These units have already moved this turn.",
-            CommandResult.NoUnitsSelected => "Select at least one unit to move.",
-            CommandResult.InvalidUnitSelection => "The selected units are not all in this province.",
-            CommandResult.NoActionPoints => "No action points left. End the turn.",
-            CommandResult.WrongFaction => "Your faction cannot do that.",
-            CommandResult.NoMissionary => "This needs a Missionary in the province.",
-            CommandResult.AlreadyBuilt => "This province already has it.",
-            CommandResult.NoMilitaryUnits => "This needs a military unit in the province.",
-            CommandResult.NoTargetUnits => "There are no enemy units to target.",
-            CommandResult.NoRebellionCell => "You have no undercover cell here.",
-            CommandResult.NothingToPurge => "There is nothing here to purge.",
-            CommandResult.InvalidBattleTarget => "Choose a valid enemy force in this province.",
-            CommandResult.InvalidRulesetShift => "Ruleset shift requirements are not met.",
-            CommandResult.NoTrader => "This needs a ready Trader in the province.",
-            CommandResult.ProvinceFortified => "Fortified provinces cannot be bought out.",
-            CommandResult.InvalidCaravanPath => "Select a contiguous path of at least 2 provinces.",
-            CommandResult.TraderCapReached => "Build more Trading Posts to support additional Traders.",
-            CommandResult.TargetEmbargoed => "Target faction has declared an Embargo against you.",
-            CommandResult.NotEmbargoed => "Declare an Embargo before raiding Guild caravans.",
-            CommandResult.CannotBuyoutWithExistingTradingPost =>
+            ActionResult.Ok => string.Empty,
+            ActionResult.GameOver => "The game is over.",
+            ActionResult.NotYourProvince => "This province is not yours.",
+            ActionResult.NoUnits => "There are no units here.",
+            ActionResult.NotEnoughGold => "Not enough gold.",
+            ActionResult.NotAdjacent => "You can only target an adjacent province.",
+            ActionResult.UnitsAlreadyMoved => "These units have already moved this turn.",
+            ActionResult.NoUnitsSelected => "Select at least one unit to move.",
+            ActionResult.InvalidUnitSelection => "The selected units are not all in this province.",
+            ActionResult.NoActionPoints => "No action points left. End the turn.",
+            ActionResult.WrongFaction => "Your faction cannot do that.",
+            ActionResult.NoMissionary => "This needs a Missionary in the province.",
+            ActionResult.AlreadyBuilt => "This province already has it.",
+            ActionResult.NoMilitaryUnits => "This needs a military unit in the province.",
+            ActionResult.NoTargetUnits => "There are no enemy units to target.",
+            ActionResult.NoRebellionCell => "You have no undercover cell here.",
+            ActionResult.NothingToPurge => "There is nothing here to purge.",
+            ActionResult.InvalidBattleTarget => "Choose a valid enemy force in this province.",
+            ActionResult.InvalidRulesetShift => "Ruleset shift requirements are not met.",
+            ActionResult.NoTrader => "This needs a ready Trader in the province.",
+            ActionResult.ProvinceFortified => "Fortified provinces cannot be bought out.",
+            ActionResult.InvalidCaravanPath => "Select a contiguous path of at least 2 provinces.",
+            ActionResult.TraderCapReached => "Build more Trading Posts to support additional Traders.",
+            ActionResult.TargetEmbargoed => "Target faction has declared an Embargo against you.",
+            ActionResult.NotEmbargoed => "Declare an Embargo before raiding Guild caravans.",
+            ActionResult.CannotBuyoutWithExistingTradingPost =>
                 "Cannot buy out a province that already has a Trading Post.",
             _ => result.ToString()
         };
@@ -231,9 +232,9 @@ namespace Presentation.Hud
 
         public static string DiceTotal(int sum) => $"= {sum}";
 
-        public static string BattleTitle(BattleReport report) => $"Battle for {report.ProvinceName}";
+        public static string BattleTitle(CombatReport report) => $"Battle for {report.ProvinceName}";
 
-        public static string BattleSummary(BattleReport report)
+        public static string BattleSummary(CombatReport report)
         {
             var result = report.Result;
             string outcome = report.ProvinceCaptured

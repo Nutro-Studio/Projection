@@ -1,64 +1,35 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using Core.Board;
 using Core.Combat;
-using Core.Crisis;
+using Core.Setup;
+using Core.Simulation;
 using NUnit.Framework;
-using Presentation.Prototype;
 
 namespace Tests.Editor
 {
     [TestFixture]
-    public class PrototypeSetupTests
+    public class ContinentalMapBuilderTests
     {
         private const int MilitantHome = 0;
         private const int Frontier = 1;
         private const int ZealotHome = 2;
 
-        private class UnusedRules : IGameRules
-        {
-            public CombatResult ResolveSkirmish(
-                IReadOnlyList<UnitInstance> attackers,
-                IReadOnlyList<UnitInstance> defenders,
-                FactionType defenderFaction,
-                bool hasFortification) => throw new System.NotSupportedException();
-
-            public PlayerProfile EvaluatePlayerTurnState(PlayerProfile player, int controlledProvinces) => player;
-
-            public int CalculateRevenue(FactionType faction, int controlledProvinces) => 0;
-
-            public int RollContest() => throw new System.NotSupportedException();
-
-            public bool CanTriggerAscension(PlayerProfile player, int controlledProvinces) => false;
-
-            public bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction,
-                int controlledProvinces) => false;
-
-            public bool CanCapitulate(PlayerProfile player) => false;
-
-            public CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction) =>
-                throw new System.NotSupportedException();
-
-            public CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction) =>
-                throw new System.NotSupportedException();
-
-            public CrisisShiftResult ExecuteCapitulation(PlayerProfile player) =>
-                throw new System.NotSupportedException();
-        }
-
-        private static ProvinceSeed[] PrototypeMap() => new[]
+        private static ProvinceSeed[] SmallMap() => new[]
         {
             new ProvinceSeed(MilitantHome, "Province 1", true, new[] { Frontier, ZealotHome },
-                PrototypeSetup.MilitantsPlayerId, 2, rebellionCellOwnerId: PrototypeSetup.GuerrillasPlayerId),
+                ContinentalMapBuilder.MilitantsPlayerId, 2,
+                rebellionCellOwnerId: ContinentalMapBuilder.GuerrillasPlayerId),
             new ProvinceSeed(Frontier, "Province 2", false, new[] { MilitantHome, ZealotHome },
                 ProvinceState.NeutralOwner, 0),
             new ProvinceSeed(ZealotHome, "Province 3", false, new[] { MilitantHome, Frontier },
-                PrototypeSetup.ZealotsPlayerId, 0, missionaries: 1, hasChurch: true)
+                ContinentalMapBuilder.ZealotsPlayerId, 0, missionaries: 1, hasChurch: true)
         };
 
-        private static PrototypeGameSession CreateSession()
+        private static GameSession CreateSession()
         {
-            var players = PrototypeSetup.CreatePlayers();
-            return new PrototypeGameSession(new UnusedRules(), players,
-                PrototypeSetup.BuildProvinces(PrototypeMap(), players), false);
+            var players = ContinentalMapBuilder.CreatePlayers();
+            return TestSessionFactory.Create(
+                players, ContinentalMapBuilder.BuildProvinces(SmallMap(), players), crisisEnabled: false);
         }
 
         private static int CountUnits(ProvinceState province, UnitType type)
@@ -66,10 +37,7 @@ namespace Tests.Editor
             int count = 0;
             for (int i = 0; i < province.Units.Count; i++)
             {
-                if (province.Units[i].Type == type)
-                {
-                    count++;
-                }
+                if (province.Units[i].Type == type) count++;
             }
 
             return count;
@@ -78,14 +46,14 @@ namespace Tests.Editor
         [Test]
         public void CreatePlayers_SeedsMilitantsZealotsAndGuerrillas()
         {
-            var players = PrototypeSetup.CreatePlayers();
+            var players = ContinentalMapBuilder.CreatePlayers();
 
             Assert.AreEqual(4, players.Length);
             Assert.AreEqual(FactionType.Militants, players[0].Faction);
             Assert.AreEqual(FactionType.Zealots, players[1].Faction);
             Assert.AreEqual(FactionType.Guerrillas, players[2].Faction);
             Assert.AreEqual(FactionType.Guilds, players[3].Faction);
-            Assert.AreEqual(PrototypeSetup.GuerrillasPlayerId, players[2].PlayerId);
+            Assert.AreEqual(ContinentalMapBuilder.GuerrillasPlayerId, players[2].PlayerId);
         }
 
         [Test]
@@ -93,10 +61,10 @@ namespace Tests.Editor
         {
             var province = CreateSession().Provinces[MilitantHome];
 
-            Assert.AreEqual(PrototypeSetup.MilitantsPlayerId, province.OwnerId);
+            Assert.AreEqual(ContinentalMapBuilder.MilitantsPlayerId, province.OwnerId);
             Assert.IsTrue(province.HasFort);
             Assert.AreEqual(2, CountUnits(province, UnitType.RegularMilitary));
-            Assert.AreEqual(PrototypeSetup.MilitantsPlayerId, province.Units[0].OwnerPlayerId);
+            Assert.AreEqual(ContinentalMapBuilder.MilitantsPlayerId, province.Units[0].OwnerPlayerId);
         }
 
         [Test]
@@ -104,10 +72,10 @@ namespace Tests.Editor
         {
             var province = CreateSession().Provinces[ZealotHome];
 
-            Assert.AreEqual(PrototypeSetup.ZealotsPlayerId, province.ChurchOwnerId);
+            Assert.AreEqual(ContinentalMapBuilder.ZealotsPlayerId, province.ChurchOwnerId);
             Assert.AreEqual(1, CountUnits(province, UnitType.Missionary));
             Assert.AreEqual(0, CountUnits(province, UnitType.RegularMilitary));
-            Assert.AreEqual(PrototypeSetup.ZealotsPlayerId, province.OwnerId);
+            Assert.AreEqual(ContinentalMapBuilder.ZealotsPlayerId, province.OwnerId);
         }
 
         [Test]
@@ -119,13 +87,13 @@ namespace Tests.Editor
             for (int i = 0; i < session.Provinces.Count; i++)
             {
                 var province = session.Provinces[i];
-                if (province.OwnerId == PrototypeSetup.GuerrillasPlayerId) landed++;
+                if (province.OwnerId == ContinentalMapBuilder.GuerrillasPlayerId) landed++;
                 if (province.RebellionCell == null) continue;
 
                 cells++;
-                Assert.AreEqual(PrototypeSetup.GuerrillasPlayerId, province.RebellionCell.OwnerId);
+                Assert.AreEqual(ContinentalMapBuilder.GuerrillasPlayerId, province.RebellionCell.OwnerId);
                 Assert.IsFalse(province.RebellionCell.IsOpenRebellion);
-                Assert.AreEqual(PrototypeSetup.MilitantsPlayerId, province.OwnerId);
+                Assert.AreEqual(ContinentalMapBuilder.MilitantsPlayerId, province.OwnerId);
             }
 
             Assert.AreEqual(0, landed);
@@ -153,13 +121,13 @@ namespace Tests.Editor
             var session = CreateSession();
 
             session.EndTurn();
-            Assert.AreEqual(PrototypeSetup.ZealotsPlayerId, session.CurrentPlayer.PlayerId);
+            Assert.AreEqual(ContinentalMapBuilder.ZealotsPlayerId, session.CurrentPlayer.PlayerId);
             session.EndTurn();
-            Assert.AreEqual(PrototypeSetup.GuerrillasPlayerId, session.CurrentPlayer.PlayerId);
+            Assert.AreEqual(ContinentalMapBuilder.GuerrillasPlayerId, session.CurrentPlayer.PlayerId);
             session.EndTurn();
-            Assert.AreEqual(PrototypeSetup.GuildsPlayerId, session.CurrentPlayer.PlayerId);
+            Assert.AreEqual(ContinentalMapBuilder.GuildsPlayerId, session.CurrentPlayer.PlayerId);
             session.EndTurn();
-            Assert.AreEqual(PrototypeSetup.MilitantsPlayerId, session.CurrentPlayer.PlayerId);
+            Assert.AreEqual(ContinentalMapBuilder.MilitantsPlayerId, session.CurrentPlayer.PlayerId);
             Assert.AreEqual(2, session.TurnNumber);
         }
     }

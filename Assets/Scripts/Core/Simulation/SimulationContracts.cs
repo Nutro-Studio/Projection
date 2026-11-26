@@ -1,0 +1,32 @@
+﻿namespace Core.Simulation
+{
+    public enum ActionResult
+    {
+        Ok,
+        GameOver,
+        NotYourProvince,
+        NoUnits,
+        NotEnoughGold,
+        NotAdjacent,
+        UnitsAlreadyMoved,
+        NoUnitsSelected,
+        InvalidUnitSelection,
+        NoActionPoints,
+        WrongFaction,
+        NoMissionary,
+        NoTrader,
+        AlreadyBuilt,
+        NoMilitaryUnits,
+        NoTargetUnits,
+        NoRebellionCell,
+        NothingToPurge,
+        InvalidBattleTarget,
+        InvalidRulesetShift,
+        ProvinceFortified,
+        InvalidCaravanPath,
+        TraderCapReached,
+        TargetEmbargoed,
+        NotEmbargoed,
+        CannotBuyoutWithExistingTradingPost
+    }
+}

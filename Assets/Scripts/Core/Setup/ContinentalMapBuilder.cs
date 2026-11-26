@@ -1,66 +1,15 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using Core.Board;
 using Core.Combat;
 using Core.Crisis;
-using UnityEngine;
+using Core.Simulation;
 
-namespace Presentation.Prototype
+namespace Core.Setup
 {
-    /// <summary>
-    /// Starting layout of one province. Names are intentionally omitted.
-    /// </summary>
-    public sealed class ProvinceSeed
-    {
-        public const int NoRebellionCell = -1;
-
-        public int Id { get; }
-        public string Name { get; }
-        public bool HasFort { get; }
-        public IReadOnlyList<int> Neighbours { get; }
-        public int OwnerId { get; }
-        public int RegularUnits { get; }
-        public int Missionaries { get; }
-        public bool HasChurch { get; }
-        public bool HasPresenceToken { get; }
-        public int RebellionCellOwnerId { get; }
-        public int RebellionUnits { get; }
-        public int Traders { get; }
-        public int TradingPostOwnerId { get; }
-
-        public ProvinceSeed(
-            int id,
-            string name,
-            bool hasFort,
-            IReadOnlyList<int> neighbours,
-            int ownerId,
-            int regularUnits,
-            int missionaries = 0,
-            bool hasChurch = false,
-            int rebellionCellOwnerId = NoRebellionCell,
-            int traders = 0,
-            int tradingPostOwnerId = ProvinceState.NoTradingPost,
-            bool hasPresenceToken = false,
-            int rebellionUnits = 0)
-        {
-            Id = id;
-            Name = name ?? string.Empty;
-            HasFort = hasFort;
-            Neighbours = neighbours;
-            OwnerId = ownerId;
-            RegularUnits = regularUnits;
-            Missionaries = missionaries;
-            HasChurch = hasChurch;
-            HasPresenceToken = hasPresenceToken;
-            RebellionCellOwnerId = rebellionCellOwnerId;
-            RebellionUnits = rebellionUnits;
-            Traders = traders;
-            TradingPostOwnerId = tradingPostOwnerId;
-        }
-    }
-
     /// <summary>
     /// Builds the starting players and 21-province continental map graph.
     /// </summary>
-    public static class PrototypeSetup
+    public static class ContinentalMapBuilder
     {
         public const int MilitantsPlayerId = 1;
         public const int ZealotsPlayerId = 2;
@@ -80,13 +29,6 @@ namespace Presentation.Prototype
             CreatePlayer(GuildsPlayerId, FactionType.Guilds)
         };
 
-        /// <summary>
-        /// 21-province continental graph (no province names):
-        /// - 0..7: Militants (8 provinces). Capital 0: 1 Fort, 3 Warriors, 1 Guild Trading Post, 1 Guild Trader.
-        /// - 8..12: Neutral Frontier (5 choke-point provinces).
-        /// - 13..20: Zealots (8 provinces). Capital 13: 1 Church, 1 Missionary, 1 Religious Presence, 1 Guild Trading Post.
-        ///   Province 14: 1 Guerrilla undercover cell + 1 Guerrilla rebel unit.
-        /// </summary>
         public static ProvinceSeed[] CreateContinentalMap21() => new[]
         {
             // --- Militant West (0..7) ---
@@ -138,34 +80,6 @@ namespace Presentation.Prototype
                 ownerId: ZealotsPlayerId, regularUnits: 0),
             new ProvinceSeed(20, string.Empty, hasFort: false, neighbours: new[] { 13, 17, 18, 19 },
                 ownerId: ZealotsPlayerId, regularUnits: 0)
-        };
-
-        /// <summary>
-        /// World-space 2D hex coordinates matching the adjacency topology of <see cref="CreateContinentalMap21"/>.
-        /// </summary>
-        public static Vector2[] CreateContinentalHexPositions21(float hexWidth = 1.8f, float hexHeight = 1.56f) => new[]
-        {
-            new Vector2(-4.5f * hexWidth, 0.0f * hexHeight), // 0: Militant Capital
-            new Vector2(-4.0f * hexWidth, 1.0f * hexHeight), // 1
-            new Vector2(-3.5f * hexWidth, 0.0f * hexHeight), // 2
-            new Vector2(-4.0f * hexWidth, -1.0f * hexHeight), // 3
-            new Vector2(-3.0f * hexWidth, 1.0f * hexHeight), // 4
-            new Vector2(-2.5f * hexWidth, 0.0f * hexHeight), // 5
-            new Vector2(-3.0f * hexWidth, -1.0f * hexHeight), // 6
-            new Vector2(-2.0f * hexWidth, 1.0f * hexHeight), // 7
-            new Vector2(-1.0f * hexWidth, 1.5f * hexHeight), // 8: North Choke (Neutral)
-            new Vector2(-1.5f * hexWidth, 0.0f * hexHeight), // 9: West-Center Frontier (Neutral)
-            new Vector2(-0.5f * hexWidth, 0.5f * hexHeight), // 10: Central Crossroads (Neutral)
-            new Vector2(-0.5f * hexWidth, -0.5f * hexHeight), // 11: South-Center Frontier (Neutral)
-            new Vector2(-1.0f * hexWidth, -1.5f * hexHeight), // 12: South Choke (Neutral)
-            new Vector2(4.5f * hexWidth, 0.0f * hexHeight), // 13: Zealot Capital
-            new Vector2(0.5f * hexWidth, 0.0f * hexHeight), // 14: Zealot Border (Guerrilla Cell + Rebel)
-            new Vector2(1.0f * hexWidth, 1.5f * hexHeight), // 15
-            new Vector2(1.5f * hexWidth, 0.5f * hexHeight), // 16
-            new Vector2(1.5f * hexWidth, -0.5f * hexHeight), // 17
-            new Vector2(1.0f * hexWidth, -1.5f * hexHeight), // 18
-            new Vector2(2.5f * hexWidth, 0.0f * hexHeight), // 19
-            new Vector2(3.5f * hexWidth, -0.5f * hexHeight) // 20
         };
 
         public static List<ProvinceState> BuildProvinces(
@@ -223,16 +137,13 @@ namespace Presentation.Prototype
         }
 
         private static PlayerProfile CreatePlayer(int playerId, FactionType faction) =>
-            new(playerId, faction, PrototypeGameSession.StartingGold, 0, new List<UnitInstance>());
+            new(playerId, faction, GameSession.StartingGold, 0, new List<UnitInstance>());
 
         private static FactionType FactionOf(IReadOnlyList<PlayerProfile> players, int playerId)
         {
             for (int i = 0; i < players.Count; i++)
             {
-                if (players[i].PlayerId == playerId)
-                {
-                    return players[i].Faction;
-                }
+                if (players[i].PlayerId == playerId) return players[i].Faction;
             }
 
             return FactionType.Guerrillas;

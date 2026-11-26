@@ -1,20 +1,21 @@
 using System;
 using Presentation.Hud;
-using Presentation.Prototype;
+using Core.Board;
+using Core.Simulation;
 
 namespace Presentation.Map
 {
     /// <summary>
     /// Keeps the world-space province views in sync: ownership and garrison come from
-    /// <see cref="PrototypeGameSession.OnProvinceStateChanged"/>, selection from <see cref="HudInteraction.Changed"/>.
+    /// <see cref="GameSession.OnProvinceStateChanged"/>, selection from <see cref="HudInteraction.Changed"/>.
     /// </summary>
     public sealed class ProvinceMapPresenter : IDisposable
     {
-        private readonly PrototypeGameSession _session;
+        private readonly GameSession _session;
         private readonly HudInteraction _interaction;
         private readonly ProvinceView[] _views;
 
-        public ProvinceMapPresenter(PrototypeGameSession session, HudInteraction interaction, ProvinceView[] views)
+        public ProvinceMapPresenter(GameSession session, HudInteraction interaction, ProvinceView[] views)
         {
             _session = session ?? throw new ArgumentNullException(nameof(session));
             _interaction = interaction ?? throw new ArgumentNullException(nameof(interaction));

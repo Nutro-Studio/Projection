@@ -1,6 +1,6 @@
 using System;
-using Presentation.Prototype;
 using UnityEngine.UIElements;
+using Core.Combat;
 
 namespace Presentation.Hud
 {
@@ -24,7 +24,7 @@ namespace Presentation.Hud
         private readonly Label[] _defenderDice = new Label[DiceCount];
         private readonly Random _tumbleRandom = new();
 
-        private BattleReport _report;
+        private CombatReport _report;
         private float _tumbleLeft;
         private float _nextFaceChange;
 
@@ -49,7 +49,7 @@ namespace Presentation.Hud
             _overlay.style.display = DisplayStyle.None;
         }
 
-        public void Play(BattleReport report)
+        public void Play(CombatReport report)
         {
             _report = report;
             _tumbleLeft = TumbleSeconds;

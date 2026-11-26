@@ -1,8 +1,9 @@
 using System;
 using Core.Combat;
 using Core.Crisis;
+using Core.Board;
+using Core.Simulation;
 using Presentation.Map;
-using Presentation.Prototype;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -13,9 +14,9 @@ namespace Presentation.Hud
     {
         private const float BannerSeconds = 4f;
 
-        private PrototypeGameSession _session;
+        private GameSession _session;
         private HudInteraction _interaction;
-        private CombatCoordinator _coordinator;
+        private ICrisisDirector _crisisDirector;
         private DiceRollView _diceRoll;
 
         private VisualElement _root;
@@ -45,22 +46,19 @@ namespace Presentation.Hud
         private Label _victoryLabel;
         private float _bannerLeft;
 
-        public void Initialize(
-            PrototypeGameSession session,
-            HudInteraction interaction,
-            CombatCoordinator coordinator)
+        public void Initialize(GameSession session, HudInteraction interaction, ICrisisDirector crisisDirector)
         {
             _session = session;
             _interaction = interaction;
-            _coordinator = coordinator;
+            _crisisDirector = crisisDirector;
 
             BindElements(GetComponent<UIDocument>().rootVisualElement);
 
             _session.StateChanged += Refresh;
             _session.BattleResolved += _diceRoll.Play;
             _interaction.Changed += Refresh;
-            _coordinator.OnRulesetShifted += ShowRulesetShift;
-            _coordinator.OnGameWon += ShowVictory;
+            _crisisDirector.OnRulesetShifted += ShowRulesetShift;
+            _crisisDirector.OnVictoryAchieved += ShowVictory;
 
             Refresh();
         }
@@ -208,7 +206,7 @@ namespace Presentation.Hud
             int filteredMovable = _interaction.MovableUnitCount;
             int unitsToMove = _interaction.UnitsToMove;
 
-            _moveButton.SetEnabled(_session.ValidateMoveOrigin(selected) == CommandResult.Ok && filteredMovable > 0);
+            _moveButton.SetEnabled(_session.ValidateMoveOrigin(selected) == ActionResult.Ok && filteredMovable > 0);
             _moveButton.text = HudText.MoveButton(unitsToMove);
             _splitRow.style.display = totalMovable > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             _filterTypeButton.text = HudText.UnitFilter(_interaction.MoveUnitTypeFilter);
@@ -283,12 +281,12 @@ namespace Presentation.Hud
                 case FactionType.Militants:
                     AddActionButton(
                         HudText.BuildFortButton(),
-                        hasAp && isOwnProvince && !province.HasFort && player.Gold >= PrototypeGameSession.FortCost,
+                        hasAp && isOwnProvince && !province.HasFort && player.Gold >= GameSession.FortCost,
                         _interaction.BuildFort);
-                    
+
                     AddActionButton(
                         HudText.BuyButton(),
-                        hasAp && isOwnProvince && player.Gold >= PrototypeGameSession.UnitCost,
+                        hasAp && isOwnProvince && player.Gold >= GameSession.UnitCost,
                         _interaction.BuyUnit);
 
                     if (hasOwnMilitary && province.RebellionCell != null && province.RebellionCell.IsOpenRebellion)
@@ -311,12 +309,12 @@ namespace Presentation.Hud
 
                     AddActionButton(
                         HudText.BuyMissionaryButton(),
-                        hasAp && isOwnProvince && player.Gold >= PrototypeGameSession.MissionaryCost,
+                        hasAp && isOwnProvince && player.Gold >= GameSession.MissionaryCost,
                         _interaction.BuyMissionary);
 
                     AddActionButton(
                         HudText.BuildChurchButton(),
-                        hasAp && isOwnProvince && !province.HasChurch && player.Gold >= PrototypeGameSession.ChurchCost,
+                        hasAp && isOwnProvince && !province.HasChurch && player.Gold >= GameSession.ChurchCost,
                         _interaction.BuildChurch);
 
                     AddActionButton(
@@ -360,7 +358,7 @@ namespace Presentation.Hud
                     AddActionButton(
                         HudText.BuyTraderButton(),
                         hasAp && (isOwnProvince || province.TradingPostOwnerId == player.PlayerId)
-                              && player.Gold >= PrototypeGameSession.TraderCost
+                              && player.Gold >= GameSession.TraderCost
                               && _session.CountPlayerUnitsOfType(player.PlayerId, UnitType.Trader) <
                               _session.CountOwnedTradingPosts(player.PlayerId),
                         _interaction.BuyTrader);
@@ -368,7 +366,7 @@ namespace Presentation.Hud
                     AddActionButton(
                         HudText.BuildTradingPostButton(),
                         hasAp && hasTrader && !province.HasTradingPost
-                        && player.Gold >= PrototypeGameSession.TradingPostCost,
+                        && player.Gold >= GameSession.TradingPostCost,
                         _interaction.BuildTradingPost);
 
                     if (_interaction.IsTargetingCaravan)
@@ -400,7 +398,7 @@ namespace Presentation.Hud
                         {
                             AddActionButton(
                                 HudText.SellMercenaryButton(ownerPlayer),
-                                hasAp && ownerPlayer.Gold >= PrototypeGameSession.DefaultMercenaryPrice,
+                                hasAp && ownerPlayer.Gold >= GameSession.DefaultMercenaryPrice,
                                 () => _interaction.SellMercenaryContract(ownerPlayer.PlayerId));
                         }
                     }
@@ -504,8 +502,11 @@ namespace Presentation.Hud
             _session.StateChanged -= Refresh;
             _session.BattleResolved -= _diceRoll.Play;
             _interaction.Changed -= Refresh;
-            _coordinator.OnRulesetShifted -= ShowRulesetShift;
-            _coordinator.OnGameWon -= ShowVictory;
+            if (_crisisDirector != null)
+            {
+                _crisisDirector.OnRulesetShifted -= ShowRulesetShift;
+                _crisisDirector.OnVictoryAchieved -= ShowVictory;
+            }
         }
     }
 }

@@ -309,9 +309,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 61939667}
-  - component: {fileID: 61939666}
   - component: {fileID: 61939669}
-  - component: {fileID: 61939668}
+  - component: {fileID: 61939670}
   m_Layer: 0
   m_Name: '[GameController]'
   m_TagString: Untagged
@@ -319,18 +318,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &61939666
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 61939665}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5d1d5e4563e9428ab8b62b3b88dfeb68, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Projection.Core::Core.Combat.CombatCoordinator
 --- !u!4 &61939667
 Transform:
   m_ObjectHideFlags: 0
@@ -346,27 +333,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &61939668
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 61939665}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 469d5fc9011e748e68acc35354f36530, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Projection.Presentation::Presentation.PrototypeGameBootstrap
-  _coordinator: {fileID: 61939666}
-  _hud: {fileID: 517987501}
-  _mapInput: {fileID: 61939669}
-  _mapCamera: {fileID: 519420031}
-  _provinceViews:
-  - {fileID: 959773570}
-  - {fileID: 793238554}
-  - {fileID: 1743660774}
-  _crisisEnabled: 0
 --- !u!114 &61939669
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -379,6 +345,27 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ab67ef0de917f4b0ca7da9426bf9fa9a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Projection.Presentation::Presentation.Map.MapInputController
+--- !u!114 &61939670
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 61939665}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 06c226199679492088c5de09be8327b7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Projection.Presentation::Presentation.GameBootstrap
+  _hud: {fileID: 517987501}
+  _mapInput: {fileID: 61939669}
+  _mapCamera: {fileID: 519420031}
+  _provinceViews:
+  - {fileID: 959773570}
+  - {fileID: 793238554}
+  - {fileID: 1743660774}
+  _useContinentalMap21: 1
+  _crisisEnabled: 1
 --- !u!1 &93209703
 GameObject:
   m_ObjectHideFlags: 0
@@ -1980,6 +1967,11 @@ MonoBehaviour:
   _churchBadge: {fileID: 265087331}
   _presenceBadge: {fileID: 308174349}
   _rebellionBadge: {fileID: 1457356273}
+  _startingTraders: 0
+  _tradingPostOwnerId: -1
+  _tradingPostBadge: {fileID: 0}
+  _hasStartingPresence: 0
+  _startingRebellionUnits: 0
 --- !u!61 &793238555
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -2248,6 +2240,11 @@ MonoBehaviour:
   _churchBadge: {fileID: 151951141}
   _presenceBadge: {fileID: 1862427829}
   _rebellionBadge: {fileID: 1385013745}
+  _startingTraders: 0
+  _tradingPostOwnerId: -1
+  _tradingPostBadge: {fileID: 0}
+  _hasStartingPresence: 0
+  _startingRebellionUnits: 0
 --- !u!61 &959773571
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -3424,6 +3421,11 @@ MonoBehaviour:
   _churchBadge: {fileID: 2112149398}
   _presenceBadge: {fileID: 2064386292}
   _rebellionBadge: {fileID: 1836394058}
+  _startingTraders: 0
+  _tradingPostOwnerId: -1
+  _tradingPostBadge: {fileID: 0}
+  _hasStartingPresence: 0
+  _startingRebellionUnits: 0
 --- !u!61 &1743660775
 BoxCollider2D:
   m_ObjectHideFlags: 0

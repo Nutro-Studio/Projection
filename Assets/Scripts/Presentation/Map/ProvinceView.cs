@@ -1,4 +1,5 @@
-using Presentation.Prototype;
+using Core.Board;
+using Core.Setup;
 using TMPro;
 using UnityEngine;
 
@@ -116,7 +117,7 @@ namespace Presentation.Map
                 _tradingPostBadge.enabled = province.HasTradingPost;
                 _tradingPostBadge.color = TradingPostTint;
             }
-            
+
             if (_nameLabel != null)
             {
                 _nameLabel.text = string.Empty;
