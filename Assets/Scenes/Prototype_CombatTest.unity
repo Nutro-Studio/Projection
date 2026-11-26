@@ -182,6 +182,28 @@ MonoBehaviour:
   _provincePrefab: {fileID: 8496168308407483939, guid: 51140566bebf5684a86f3becd937daa9, type: 3}
   _mapRoot: {fileID: 1876604747}
   _crisisEnabled: 1
+  _terrainTiles:
+  - {fileID: 21300000, guid: 8bb2ca643235045cb9deaa6bdf28ccf2, type: 3}
+  - {fileID: 21300000, guid: d54037f7da57841c7aeafef64c024638, type: 3}
+  - {fileID: 21300000, guid: 1895889880d2945f1b20c6d13affe1c5, type: 3}
+  - {fileID: 21300000, guid: 6966b479e16c34056ad1cdefb5407a73, type: 3}
+  - {fileID: 21300000, guid: e9f3ab268b3794d6e9c54e47f31acf1c, type: 3}
+  - {fileID: 21300000, guid: 981c8d7b68abd44a28473407720aa4b4, type: 3}
+  - {fileID: 21300000, guid: 9f7294ad7843b49b584aeda22fb91288, type: 3}
+  - {fileID: 21300000, guid: 40330cda33fde404a90c209c48324df6, type: 3}
+  - {fileID: 21300000, guid: a296cc901c70b4c0193eb7cb10622bc3, type: 3}
+  - {fileID: 21300000, guid: 851aa47e55572472090fc84d92114460, type: 3}
+  - {fileID: 21300000, guid: a933d793d2a384bb4bc5ddba4dbd02f5, type: 3}
+  - {fileID: 21300000, guid: 695461184497844d49c2653f9ceea2af, type: 3}
+  - {fileID: 21300000, guid: 2d72fecf1e8164ecf9127cdaa6d3f139, type: 3}
+  - {fileID: 21300000, guid: cb4766ab067344edca2b8eefa5721976, type: 3}
+  - {fileID: 21300000, guid: 11372b588046348629343e10611bd0d8, type: 3}
+  - {fileID: 21300000, guid: 6319d22b1c8a14bb79234c1b7e34cb86, type: 3}
+  - {fileID: 21300000, guid: c4e5430a078cf408c98b2efe57304e2d, type: 3}
+  - {fileID: 21300000, guid: f2d8a30c52f9d4ea1bcc0b4dbd6697b8, type: 3}
+  - {fileID: 21300000, guid: b97af8335684d4e7c8047bb2260ae4aa, type: 3}
+  - {fileID: 21300000, guid: d54037f7da57841c7aeafef64c024638, type: 3}
+  - {fileID: 21300000, guid: 9f7294ad7843b49b584aeda22fb91288, type: 3}
 --- !u!1 &517987500
 GameObject:
   m_ObjectHideFlags: 0
@@ -331,7 +353,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 2
-  m_BackGroundColor: {r: 0.17, g: 0.24, b: 0.27, a: 0}
+  m_BackGroundColor: {r: 0.11, g: 0.27, b: 0.38, a: 1}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0

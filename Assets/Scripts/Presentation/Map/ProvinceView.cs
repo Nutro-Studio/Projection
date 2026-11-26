@@ -12,6 +12,12 @@ namespace Presentation.Map
         private const float TargetScale = 1.06f;
         private const float TargetLighten = 0.35f;
 
+        // The terrain keeps its own colours and only leans towards the owner, whose colour shows on the rim.
+        private const float TerrainTint = 0.18f;
+
+        // The banner sits on the owner's own hexagon, so it needs a darker shade to stay visible.
+        private const float BannerDarken = 0.45f;
+
         private static readonly Color IdleOutlineColor = new(0.12f, 0.15f, 0.18f, 0.65f);
         private static readonly Color SelectedOutlineColor = new(1f, 0.92f, 0.45f, 1f);
         private static readonly Color TargetOutlineColor = new(0.45f, 0.95f, 1f, 1f);
@@ -32,6 +38,7 @@ namespace Presentation.Map
         [SerializeField] private bool _hasFort;
         [SerializeField] private int[] _neighbours;
         [SerializeField] private SpriteRenderer _outline;
+        [SerializeField] private SpriteRenderer _terrain;
         [SerializeField] private TextMeshPro _nameLabel;
         [SerializeField] private SpriteRenderer _ownerBanner;
         [SerializeField] private TextMeshPro _unitCount;
@@ -78,6 +85,14 @@ namespace Presentation.Map
             _neighbours = neighbours;
         }
 
+        public void SetTerrain(Sprite terrain)
+        {
+            if (_terrain == null) return;
+
+            _terrain.sprite = terrain;
+            _terrain.enabled = terrain != null;
+        }
+
         public ProvinceSeed ToSeed() =>
             new(_provinceId, string.Empty, _hasFort, _neighbours, _startingOwnerId, _startingUnits,
                 _startingMissionaries, _hasStartingChurch, _startingRebellionCellOwnerId,
@@ -89,7 +104,7 @@ namespace Presentation.Map
             _unitCount.text = province.Units.Count.ToString();
             _fortBadge.enabled = province.HasFort;
             _ownerBanner.enabled = hasOwner;
-            _ownerBanner.color = ownerColor;
+            _ownerBanner.color = Color.Lerp(ownerColor, Color.black, BannerDarken);
 
             if (_churchBadge != null)
             {
@@ -151,6 +166,7 @@ namespace Presentation.Map
         private void ApplyColor()
         {
             _renderer.color = _isMoveTarget ? Color.Lerp(_ownerColor, Color.white, TargetLighten) : _ownerColor;
+            if (_terrain != null) _terrain.color = Color.Lerp(Color.white, _ownerColor, TerrainTint);
         }
     }
 }
