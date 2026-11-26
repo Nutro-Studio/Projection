@@ -58,6 +58,7 @@ namespace Core.Simulation
             remove => _state.ProvinceStateChanged -= value;
         }
 
+        public GameBalanceConfig Config => _state.Config;
         public IReadOnlyList<ProvinceState> Provinces => _state.Provinces;
         public PlayerProfile CurrentPlayer => _state.CurrentPlayer;
         public int TurnNumber => _state.TurnNumber;
@@ -70,14 +71,15 @@ namespace Core.Simulation
             IDiceRoller contestDice,
             IReadOnlyList<PlayerProfile> players,
             IReadOnlyList<ProvinceState> provinces,
-            bool crisisEnabled)
+            bool crisisEnabled,
+            GameBalanceConfig config = null)
         {
             if (combatService == null) throw new ArgumentNullException(nameof(combatService));
             _crisisDirector = crisisDirector ?? throw new ArgumentNullException(nameof(crisisDirector));
             if (rulesets == null) throw new ArgumentNullException(nameof(rulesets));
             if (contestDice == null) throw new ArgumentNullException(nameof(contestDice));
 
-            _state = new GameSessionState(players, provinces, crisisEnabled);
+            _state = new GameSessionState(players, provinces, crisisEnabled, config);
             _movement = new MovementAndCombatHandler(_state, combatService, rulesets);
             _factionActions = new FactionActionHandler(_state, contestDice);
             _guildCommerce = new GuildCommerceHandler(_state, _movement);
@@ -103,7 +105,9 @@ namespace Core.Simulation
             _movement.GetUnitsForPlayer(provinceId, playerId, typeFilter);
 
         public int GetRebellionCellCost(int provinceId) =>
-            _state.Provinces[provinceId].HasChurch ? RebellionCellCost * 2 : RebellionCellCost;
+            _state.Provinces[provinceId].HasChurch
+                ? _state.Config.RebellionCellCost * 2
+                : _state.Config.RebellionCellCost;
 
         public int GetHostileBuyoutCost(int provinceId) => _guildCommerce.GetHostileBuyoutCost(provinceId);
         public int CountRebelProvinces(int playerId) => _turnAndCrisis.CountRebelProvinces(playerId);
@@ -191,9 +195,9 @@ namespace Core.Simulation
 
         public ActionResult HostileBuyout(int provinceId) => _guildCommerce.HostileBuyout(provinceId);
 
-        public ActionResult SellMercenaryContract(int provinceId, int buyerPlayerId,
-            int goldPrice = DefaultMercenaryPrice) =>
-            _guildCommerce.SellMercenaryContract(provinceId, buyerPlayerId, goldPrice);
+        public ActionResult SellMercenaryContract(int provinceId, int buyerPlayerId, int? goldPrice = null) =>
+            _guildCommerce.SellMercenaryContract(provinceId, buyerPlayerId,
+                goldPrice ?? _state.Config.DefaultMercenaryPrice);
 
         // Turn & Crisis
         public bool CanCapitulate() => !IsGameOver && _crisisDirector.CanCapitulate(CurrentPlayer);

@@ -27,7 +27,7 @@ namespace Core.Actions
                 return ActionResult.WrongFaction;
             }
 
-            return Recruit(provinceId, GameSession.UnitCost, UnitType.RegularMilitary);
+            return Recruit(provinceId, _state.Config.UnitCost, UnitType.RegularMilitary);
         }
 
         public ActionResult BuyMissionary(int provinceId)
@@ -36,7 +36,7 @@ namespace Core.Actions
             if (check != ActionResult.Ok) return check;
             if (_state.CurrentPlayer.Faction != FactionType.Zealots) return ActionResult.WrongFaction;
 
-            return Recruit(provinceId, GameSession.MissionaryCost, UnitType.Missionary);
+            return Recruit(provinceId, _state.Config.MissionaryCost, UnitType.Missionary);
         }
 
         public ActionResult BuildFort(int provinceId)
@@ -48,11 +48,11 @@ namespace Core.Actions
             var player = _state.CurrentPlayer;
             if (player.Faction != FactionType.Militants) return ActionResult.WrongFaction;
             if (province.HasFort) return ActionResult.AlreadyBuilt;
-            if (player.Gold < GameSession.FortCost) return ActionResult.NotEnoughGold;
+            if (player.Gold < _state.Config.FortCost) return ActionResult.NotEnoughGold;
 
             _state.SetProvince(province.WithFort(true));
-            _state.AddGold(_state.CurrentPlayerIndex, -GameSession.FortCost);
-            _state.AddVictoryPoints(_state.CurrentPlayerIndex, GameSession.BuildFortVp);
+            _state.AddGold(_state.CurrentPlayerIndex, -_state.Config.FortCost);
+            _state.AddVictoryPoints(_state.CurrentPlayerIndex, _state.Config.BuildFortVp);
             _state.SpendActionPoint();
             _state.NotifyStateChanged();
             return ActionResult.Ok;
@@ -67,11 +67,11 @@ namespace Core.Actions
             var player = _state.CurrentPlayer;
             if (player.Faction != FactionType.Zealots) return ActionResult.WrongFaction;
             if (province.HasChurch) return ActionResult.AlreadyBuilt;
-            if (player.Gold < GameSession.ChurchCost) return ActionResult.NotEnoughGold;
+            if (player.Gold < _state.Config.ChurchCost) return ActionResult.NotEnoughGold;
 
             _state.SetProvince(province.WithChurch(player.PlayerId));
-            _state.AddGold(_state.CurrentPlayerIndex, -GameSession.ChurchCost);
-            _state.AddVictoryPoints(_state.CurrentPlayerIndex, GameSession.BuildChurchVp);
+            _state.AddGold(_state.CurrentPlayerIndex, -_state.Config.ChurchCost);
+            _state.AddVictoryPoints(_state.CurrentPlayerIndex, _state.Config.BuildChurchVp);
             _state.SpendActionPoint();
             _state.NotifyStateChanged();
             return ActionResult.Ok;
@@ -169,7 +169,7 @@ namespace Core.Actions
             if (check != ActionResult.Ok) return check;
 
             var province = _state.Provinces[provinceId];
-            int cost = province.HasChurch ? GameSession.RebellionCellCost * 2 : GameSession.RebellionCellCost;
+            int cost = province.HasChurch ? _state.Config.RebellionCellCost * 2 : _state.Config.RebellionCellCost;
             if (province.RebellionCell != null) return ActionResult.AlreadyBuilt;
             if (_state.CurrentPlayer.Gold < cost) return ActionResult.NotEnoughGold;
 
@@ -208,7 +208,7 @@ namespace Core.Actions
             }
 
             _state.SetProvince(province.WithRebellionCell(null));
-            _state.AddVictoryPoints(_state.CurrentPlayerIndex, GameSession.CaptureOrCrushRebellionVp);
+            _state.AddVictoryPoints(_state.CurrentPlayerIndex, _state.Config.CaptureOrCrushRebellionVp);
             _state.SpendActionPoint();
             _state.NotifyStateChanged();
             return ActionResult.Ok;

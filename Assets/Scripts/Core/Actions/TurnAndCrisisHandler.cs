@@ -47,7 +47,7 @@ namespace Core.Actions
 
             int provincesForRules = _state.CrisisEnabled
                 ? controlled
-                : Math.Max(controlled, CrisisDirector.CrisisProvinceThreshold);
+                : Math.Max(controlled, _state.Config.CrisisProvinceThreshold);
 
             var updated = EvaluatePlayerTurnState(beforeRules, provincesForRules);
             _state.Players[_state.CurrentPlayerIndex] = updated;
@@ -59,7 +59,7 @@ namespace Core.Actions
                     new CrisisShiftResult(updated, beforeRules.Faction, updated.Faction, true, false, false));
             }
 
-            _state.IsGameOver = updated.VictoryPoints >= CrisisDirector.VictoryPointsThreshold;
+            _state.IsGameOver = updated.VictoryPoints >= _state.Config.VictoryPointsThreshold;
             if (!_state.IsGameOver)
             {
                 ResetUnitActionFlags();
@@ -187,7 +187,7 @@ namespace Core.Actions
 
             SynchronizeBoardAfterShift(shift);
 
-            if (_state.Players[_state.CurrentPlayerIndex].VictoryPoints >= CrisisDirector.VictoryPointsThreshold)
+            if (_state.Players[_state.CurrentPlayerIndex].VictoryPoints >= _state.Config.VictoryPointsThreshold)
             {
                 _state.IsGameOver = true;
             }
@@ -329,7 +329,7 @@ namespace Core.Actions
                                       + (Math.Max(0, bankedGold) / 10)
                                       + (_state.QualifyingCaravanRoutesThisTurn * 2),
                 FactionType.Guerrillas => CountActiveRebellionProvinces(player.PlayerId),
-                _ => controlledProvinces * GameSession.VictoryPointsPerProvince
+                _ => controlledProvinces * _state.Config.VictoryPointsPerProvince
             };
 
         private void CollectChurchTithes()
@@ -355,10 +355,10 @@ namespace Core.Actions
                         continue;
                     }
 
-                    if (_state.CurrentPlayer.Gold < GameSession.ChurchTithe) continue;
+                    if (_state.CurrentPlayer.Gold < _state.Config.ChurchTithe) continue;
 
-                    _state.AddGold(_state.CurrentPlayerIndex, -GameSession.ChurchTithe);
-                    _state.AddGold(churchOwnerIndex, GameSession.ChurchTithe);
+                    _state.AddGold(_state.CurrentPlayerIndex, -_state.Config.ChurchTithe);
+                    _state.AddGold(churchOwnerIndex, _state.Config.ChurchTithe);
                     kept.Add(unit);
                 }
 

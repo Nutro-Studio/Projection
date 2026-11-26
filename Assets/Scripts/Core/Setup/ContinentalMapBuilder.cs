@@ -21,13 +21,17 @@ namespace Core.Setup
         public const int ZealotCapitalId = 13;
         public const int GuerrillaCellProvinceId = 14;
 
-        public static PlayerProfile[] CreatePlayers() => new[]
+        public static PlayerProfile[] CreatePlayers(GameBalanceConfig config = null)
         {
-            CreatePlayer(MilitantsPlayerId, FactionType.Militants),
-            CreatePlayer(ZealotsPlayerId, FactionType.Zealots),
-            CreatePlayer(GuerrillasPlayerId, FactionType.Guerrillas),
-            CreatePlayer(GuildsPlayerId, FactionType.Guilds)
-        };
+            var cfg = config ?? GameBalanceConfig.Default;
+            return new[]
+            {
+                CreatePlayer(MilitantsPlayerId, FactionType.Militants, cfg.StartingGold),
+                CreatePlayer(ZealotsPlayerId, FactionType.Zealots, cfg.StartingGold),
+                CreatePlayer(GuerrillasPlayerId, FactionType.Guerrillas, cfg.StartingGold),
+                CreatePlayer(GuildsPlayerId, FactionType.Guilds, cfg.StartingGold)
+            };
+        }
 
         public static ProvinceSeed[] CreateContinentalMap21() => new[]
         {
@@ -136,8 +140,8 @@ namespace Core.Setup
             return provinces;
         }
 
-        private static PlayerProfile CreatePlayer(int playerId, FactionType faction) =>
-            new(playerId, faction, GameSession.StartingGold, 0, new List<UnitInstance>());
+        private static PlayerProfile CreatePlayer(int playerId, FactionType faction, int startingGold) =>
+            new(playerId, faction, startingGold, 0, new List<UnitInstance>());
 
         private static FactionType FactionOf(IReadOnlyList<PlayerProfile> players, int playerId)
         {

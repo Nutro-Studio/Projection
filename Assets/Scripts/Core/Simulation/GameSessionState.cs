@@ -12,6 +12,7 @@ namespace Core.Simulation
         public readonly ProvinceState[] Provinces;
         public readonly HashSet<(int EmbargoerId, int GuildId)> ActiveEmbargoes = new();
         public readonly bool CrisisEnabled;
+        public readonly GameBalanceConfig Config;
 
         public int CurrentPlayerIndex;
         public int NextUnitId;
@@ -28,9 +29,11 @@ namespace Core.Simulation
         public GameSessionState(
             IReadOnlyList<PlayerProfile> players,
             IReadOnlyList<ProvinceState> provinces,
-            bool crisisEnabled)
+            bool crisisEnabled,
+            GameBalanceConfig config = null)
         {
             CrisisEnabled = crisisEnabled;
+            Config = config ?? GameBalanceConfig.Default;
             Players = new PlayerProfile[players.Count];
             for (int i = 0; i < players.Count; i++)
             {
@@ -71,7 +74,7 @@ namespace Core.Simulation
         {
             var player = Players[playerIndex];
             Players[playerIndex] = player with { VictoryPoints = Math.Max(0, player.VictoryPoints + amount) };
-            if (Players[playerIndex].VictoryPoints >= CrisisDirector.VictoryPointsThreshold)
+            if (Players[playerIndex].VictoryPoints >= Config.VictoryPointsThreshold)
             {
                 IsGameOver = true;
             }

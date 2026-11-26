@@ -131,7 +131,7 @@ namespace Core.Actions
 
             if (provinceCaptured && attacker.Faction == FactionType.Militants)
             {
-                _state.AddVictoryPoints(_state.CurrentPlayerIndex, GameSession.CaptureOrCrushRebellionVp);
+                _state.AddVictoryPoints(_state.CurrentPlayerIndex, _state.Config.CaptureOrCrushRebellionVp);
             }
 
             if (!provinceCaptured
@@ -143,7 +143,7 @@ namespace Core.Actions
                 int defenderIndex = _state.IndexOfPlayer(defenderPlayerId);
                 if (defenderIndex >= 0)
                 {
-                    _state.AddVictoryPoints(defenderIndex, GameSession.DefendRebellionVp);
+                    _state.AddVictoryPoints(defenderIndex, _state.Config.DefendRebellionVp);
                 }
             }
 

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Core.Combat;
+using Core.Simulation;
 
 namespace Core.Crisis
 {
@@ -11,19 +12,22 @@ namespace Core.Crisis
         public const int AscensionProvinceThreshold = 5;
 
         private readonly IReadOnlyDictionary<FactionType, IFactionRuleset> _rulesets;
+        private readonly GameBalanceConfig _config;
 
         public event Action<CrisisShiftResult> OnRulesetShifted;
         public event Action<PlayerProfile> OnVictoryAchieved;
 
-        public CrisisDirector(IReadOnlyDictionary<FactionType, IFactionRuleset> rulesets)
+        public CrisisDirector(IReadOnlyDictionary<FactionType, IFactionRuleset> rulesets,
+            GameBalanceConfig config = null)
         {
             _rulesets = rulesets ?? throw new ArgumentNullException(nameof(rulesets));
+            _config = config ?? GameBalanceConfig.Default;
         }
 
         public bool CheckVictory(PlayerProfile player)
         {
             if (player == null) throw new ArgumentNullException(nameof(player));
-            bool won = player.VictoryPoints >= VictoryPointsThreshold;
+            bool won = player.VictoryPoints >= _config.VictoryPointsThreshold;
             if (won)
             {
                 OnVictoryAchieved?.Invoke(player);
@@ -40,7 +44,7 @@ namespace Core.Crisis
             if (player == null) throw new ArgumentNullException(nameof(player));
             if (!_rulesets.TryGetValue(player.Faction, out var ruleset)) return false;
 
-            return ruleset.IsLanded && controlledProvinces < CrisisProvinceThreshold;
+            return ruleset.IsLanded && controlledProvinces < _config.CrisisProvinceThreshold;
         }
 
         /// <summary>
@@ -58,7 +62,7 @@ namespace Core.Crisis
         public bool CanTriggerAscension(PlayerProfile player, int rebelProvinces)
         {
             if (player == null) throw new ArgumentNullException(nameof(player));
-            return player.Faction == FactionType.Guerrillas && rebelProvinces >= AscensionProvinceThreshold;
+            return player.Faction == FactionType.Guerrillas && rebelProvinces >= _config.AscensionProvinceThreshold;
         }
 
         public bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction, int controlledProvinces)

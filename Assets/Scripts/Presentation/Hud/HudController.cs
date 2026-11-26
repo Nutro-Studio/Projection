@@ -174,7 +174,7 @@ namespace Presentation.Hud
             _playerFlag.style.unityBackgroundImageTintColor = FactionPalette.For(player.Faction);
             _apLabel.text = HudText.ActionPoints(player.ActionPoints, PlayerProfile.BaseActionPoints);
             _goldLabel.text = HudText.Gold(player.Gold);
-            _vpLabel.text = HudText.VictoryPoints(player.VictoryPoints);
+            _vpLabel.text = HudText.VictoryPoints(player.VictoryPoints, _session.Config);
             _turnLabel.text = HudText.Turn(_session.TurnNumber);
 
             RefreshProvincePanel();
@@ -222,6 +222,7 @@ namespace Presentation.Hud
             _dynamicActionsContainer.Clear();
 
             var player = _session.CurrentPlayer;
+            var config = _session.Config;
             bool hasAp = !_session.IsGameOver && player.ActionPoints > 0;
             bool isOwnProvince = province.OwnerId == player.PlayerId;
             bool hasOwnMilitary =
@@ -280,13 +281,13 @@ namespace Presentation.Hud
             {
                 case FactionType.Militants:
                     AddActionButton(
-                        HudText.BuildFortButton(),
-                        hasAp && isOwnProvince && !province.HasFort && player.Gold >= GameSession.FortCost,
+                        HudText.BuildFortButton(config),
+                        hasAp && isOwnProvince && !province.HasFort && player.Gold >= config.FortCost,
                         _interaction.BuildFort);
 
                     AddActionButton(
-                        HudText.BuyButton(),
-                        hasAp && isOwnProvince && player.Gold >= GameSession.UnitCost,
+                        HudText.BuyButton(config),
+                        hasAp && isOwnProvince && player.Gold >= config.UnitCost,
                         _interaction.BuyUnit);
 
                     if (hasOwnMilitary && province.RebellionCell != null && province.RebellionCell.IsOpenRebellion)
@@ -320,13 +321,13 @@ namespace Presentation.Hud
                     bool hasEnemyMilitary = _session.GetCoexistingEnemyIds(selectedProvinceId).Count > 0;
 
                     AddActionButton(
-                        HudText.BuyMissionaryButton(),
-                        hasAp && isOwnProvince && player.Gold >= GameSession.MissionaryCost,
+                        HudText.BuyMissionaryButton(config),
+                        hasAp && isOwnProvince && player.Gold >= config.MissionaryCost,
                         _interaction.BuyMissionary);
 
                     AddActionButton(
-                        HudText.BuildChurchButton(),
-                        hasAp && isOwnProvince && !province.HasChurch && player.Gold >= GameSession.ChurchCost,
+                        HudText.BuildChurchButton(config),
+                        hasAp && isOwnProvince && !province.HasChurch && player.Gold >= config.ChurchCost,
                         _interaction.BuildChurch);
 
                     AddActionButton(
@@ -368,17 +369,17 @@ namespace Presentation.Hud
                     }
 
                     AddActionButton(
-                        HudText.BuyTraderButton(),
+                        HudText.BuyTraderButton(config),
                         hasAp && (isOwnProvince || province.TradingPostOwnerId == player.PlayerId)
-                              && player.Gold >= GameSession.TraderCost
+                              && player.Gold >= config.TraderCost
                               && _session.CountPlayerUnitsOfType(player.PlayerId, UnitType.Trader) <
                               _session.CountOwnedTradingPosts(player.PlayerId),
                         _interaction.BuyTrader);
 
                     AddActionButton(
-                        HudText.BuildTradingPostButton(),
+                        HudText.BuildTradingPostButton(config),
                         hasAp && hasTrader && !province.HasTradingPost
-                        && player.Gold >= GameSession.TradingPostCost,
+                        && player.Gold >= config.TradingPostCost,
                         _interaction.BuildTradingPost);
 
                     if (_interaction.IsTargetingCaravan)
@@ -409,8 +410,8 @@ namespace Presentation.Hud
                         if (ownerPlayer != null && (hasTrader || province.TradingPostOwnerId == player.PlayerId))
                         {
                             AddActionButton(
-                                HudText.SellMercenaryButton(ownerPlayer),
-                                hasAp && ownerPlayer.Gold >= GameSession.DefaultMercenaryPrice,
+                                HudText.SellMercenaryButton(ownerPlayer, config),
+                                hasAp && ownerPlayer.Gold >= config.DefaultMercenaryPrice,
                                 () => _interaction.SellMercenaryContract(ownerPlayer.PlayerId));
                         }
                     }

@@ -34,7 +34,7 @@ namespace Core.Actions
                 return ActionResult.TraderCapReached;
             }
 
-            if (_state.CurrentPlayer.Gold < GameSession.TraderCost) return ActionResult.NotEnoughGold;
+            if (_state.CurrentPlayer.Gold < _state.Config.TraderCost) return ActionResult.NotEnoughGold;
 
             var units = new List<UnitInstance>(province.Units)
             {
@@ -42,7 +42,7 @@ namespace Core.Actions
             };
 
             _state.SetProvince(province.WithUnits(units));
-            _state.AddGold(_state.CurrentPlayerIndex, -GameSession.TraderCost);
+            _state.AddGold(_state.CurrentPlayerIndex, -_state.Config.TraderCost);
             _state.SpendActionPoint();
             _state.NotifyStateChanged();
             return ActionResult.Ok;
@@ -61,7 +61,7 @@ namespace Core.Actions
             }
 
             if (province.HasTradingPost) return ActionResult.AlreadyBuilt;
-            if (player.Gold < GameSession.TradingPostCost) return ActionResult.NotEnoughGold;
+            if (player.Gold < _state.Config.TradingPostCost) return ActionResult.NotEnoughGold;
 
             var updatedUnits = new List<UnitInstance>(province.Units)
             {
@@ -69,7 +69,7 @@ namespace Core.Actions
             };
 
             _state.SetProvince(province.WithTradingPost(player.PlayerId).WithUnits(updatedUnits));
-            _state.AddGold(_state.CurrentPlayerIndex, -GameSession.TradingPostCost);
+            _state.AddGold(_state.CurrentPlayerIndex, -_state.Config.TradingPostCost);
             _state.SpendActionPoint();
             _state.NotifyStateChanged();
             return ActionResult.Ok;
@@ -123,7 +123,7 @@ namespace Core.Actions
                 int ownerId = _state.Provinces[nextId].OwnerId;
                 if (ownerId != ProvinceState.NeutralOwner && ownerId != playerId)
                 {
-                    totalToll += GameSession.CaravanTransitToll;
+                    totalToll += _state.Config.CaravanTransitToll;
                 }
             }
 
@@ -135,12 +135,12 @@ namespace Core.Actions
                 if (ownerId != ProvinceState.NeutralOwner && ownerId != playerId)
                 {
                     int ownerIdx = _state.IndexOfPlayer(ownerId);
-                    if (ownerIdx >= 0) _state.AddGold(ownerIdx, GameSession.CaravanTransitToll);
+                    if (ownerIdx >= 0) _state.AddGold(ownerIdx, _state.Config.CaravanTransitToll);
                 }
             }
 
-            int extraPosts = Math.Max(0, CountOwnedTradingPosts(playerId) - GameSession.StartingTradingPostCount);
-            int gainPerProvince = GameSession.CaravanBaseGainPerProvince + (extraPosts / 2);
+            int extraPosts = Math.Max(0, CountOwnedTradingPosts(playerId) - _state.Config.StartingTradingPostCount);
+            int gainPerProvince = _state.Config.CaravanBaseGainPerProvince + (extraPosts / 2);
             _state.AddGold(_state.CurrentPlayerIndex, (traversedCount * gainPerProvince) - totalToll);
 
             var trader = origin.Units[traderIndex] with { HasActed = true };
@@ -156,7 +156,7 @@ namespace Core.Actions
             _state.SetProvince(origin.WithUnits(originUnits));
             _state.SetProvince(dest.WithUnits(destUnits));
 
-            if (traversedCount >= GameSession.CaravanMinTraversedForVp)
+            if (traversedCount >= _state.Config.CaravanMinTraversedForVp)
             {
                 _state.QualifyingCaravanRoutesThisTurn++;
             }
@@ -169,18 +169,18 @@ namespace Core.Actions
         public int GetHostileBuyoutCost(int provinceId)
         {
             var province = _state.Provinces[provinceId];
-            int cost = GameSession.HostileBuyoutBaseCost;
+            int cost = _state.Config.HostileBuyoutBaseCost;
             for (int i = 0; i < province.Units.Count; i++)
             {
                 var u = province.Units[i];
                 if (u.OwnerPlayerId == province.OwnerId && u.Type == UnitType.RegularMilitary)
                 {
-                    cost += GameSession.HostileBuyoutUnitPremium;
+                    cost += _state.Config.HostileBuyoutUnitPremium;
                 }
             }
 
-            if (province.HasChurch) cost += GameSession.HostileBuyoutBuildingPremium;
-            if (province.HasTradingPost) cost += GameSession.HostileBuyoutBuildingPremium;
+            if (province.HasChurch) cost += _state.Config.HostileBuyoutBuildingPremium;
+            if (province.HasTradingPost) cost += _state.Config.HostileBuyoutBuildingPremium;
             return cost;
         }
 
@@ -231,7 +231,7 @@ namespace Core.Actions
             }
 
             _state.SetProvince(province.WithUnits(updatedUnits));
-            _state.AddGold(_state.CurrentPlayerIndex, GameSession.TraderCost);
+            _state.AddGold(_state.CurrentPlayerIndex, _state.Config.TraderCost);
             _state.SpendActionPoint();
             _state.NotifyStateChanged();
             return ActionResult.Ok;

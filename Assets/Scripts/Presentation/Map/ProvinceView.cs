@@ -12,6 +12,10 @@ namespace Presentation.Map
         private const float TargetScale = 1.06f;
         private const float TargetLighten = 0.35f;
 
+        private static readonly Color IdleOutlineColor = new(0.12f, 0.15f, 0.18f, 0.65f);
+        private static readonly Color SelectedOutlineColor = new(1f, 0.92f, 0.45f, 1f);
+        private static readonly Color TargetOutlineColor = new(0.45f, 0.95f, 1f, 1f);
+
         private static readonly Color ChurchTint = new(1f, 0.88f, 0.35f, 1f);
         private static readonly Color PresenceTint = new(0.45f, 0.85f, 1f, 1f);
         private static readonly Color UndercoverCellTint = new(0.25f, 0.75f, 0.35f, 0.55f);
@@ -82,7 +86,6 @@ namespace Presentation.Map
         public void ShowState(ProvinceState province, Color ownerColor, bool hasOwner)
         {
             _ownerColor = ownerColor;
-            _nameLabel.text = province.Name;
             _unitCount.text = province.Units.Count.ToString();
             _fortBadge.enabled = province.HasFort;
             _ownerBanner.enabled = hasOwner;
@@ -120,7 +123,7 @@ namespace Presentation.Map
 
             if (_nameLabel != null)
             {
-                _nameLabel.text = string.Empty;
+                _nameLabel.text = $"#{province.Id}";
             }
 
             ApplyColor();
@@ -131,7 +134,17 @@ namespace Presentation.Map
             _isMoveTarget = isMoveTarget;
             float scale = isSelected ? SelectedScale : isMoveTarget ? TargetScale : 1f;
             transform.localScale = _baseScale * scale;
-            _outline.enabled = isSelected || isMoveTarget;
+
+            if (_outline != null)
+            {
+                _outline.enabled = true;
+                _outline.color = isSelected
+                    ? SelectedOutlineColor
+                    : isMoveTarget
+                        ? TargetOutlineColor
+                        : IdleOutlineColor;
+            }
+
             ApplyColor();
         }
 

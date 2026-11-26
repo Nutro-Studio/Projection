@@ -13,8 +13,8 @@ namespace Presentation.Hud
 
         public static string Gold(int gold) => $"Gold: {gold}G";
 
-        public static string VictoryPoints(int victoryPoints) =>
-            $"VP: {victoryPoints}/{CrisisDirector.VictoryPointsThreshold}";
+        public static string VictoryPoints(int victoryPoints, GameBalanceConfig config = null) =>
+            $"VP: {victoryPoints}/{(config ?? GameBalanceConfig.Default).VictoryPointsThreshold}";
 
         public static string Player(PlayerProfile player) => $"Player {player.PlayerId}: {Faction(player.Faction)}";
 
@@ -144,15 +144,26 @@ namespace Presentation.Hud
 
         public static string UnitsToMove(int unitsToMove, int movable) => $"{unitsToMove}/{movable}";
 
-        public static string BuyButton() => $"Buy Military ({GameSession.UnitCost}G)";
+        public static string BuyButton(GameBalanceConfig config = null) =>
+            $"Buy Military ({(config ?? GameBalanceConfig.Default).UnitCost}G)";
 
-        public static string BuyMissionaryButton() => $"Buy Missionary ({GameSession.MissionaryCost}G)";
+        public static string BuyMissionaryButton(GameBalanceConfig config = null) =>
+            $"Buy Missionary ({(config ?? GameBalanceConfig.Default).MissionaryCost}G)";
 
-        public static string BuyTraderButton() => $"Buy Trader ({GameSession.TraderCost}G)";
+        public static string BuyTraderButton(GameBalanceConfig config = null) =>
+            $"Buy Trader ({(config ?? GameBalanceConfig.Default).TraderCost}G)";
 
-        public static string BuildFortButton() => $"Build Fort ({GameSession.FortCost}G)";
+        public static string BuildFortButton(GameBalanceConfig config = null) =>
+            $"Build Fort ({(config ?? GameBalanceConfig.Default).FortCost}G)";
 
-        public static string BuildChurchButton() => $"Build Church ({GameSession.ChurchCost}G)";
+        public static string BuildChurchButton(GameBalanceConfig config = null) =>
+            $"Build Church ({(config ?? GameBalanceConfig.Default).ChurchCost}G)";
+
+        public static string BuildTradingPostButton(GameBalanceConfig config = null) =>
+            $"Trading Post ({(config ?? GameBalanceConfig.Default).TradingPostCost}G)";
+
+        public static string SellMercenaryButton(PlayerProfile buyer, GameBalanceConfig config = null) =>
+            $"Sell Mercenary to P{buyer.PlayerId} ({(config ?? GameBalanceConfig.Default).DefaultMercenaryPrice}G)";
 
         public static string ConsecrateButton() => "Consecrate";
 
@@ -167,16 +178,11 @@ namespace Presentation.Hud
         public static string InquisitionButton() => "Inquisition";
 
         public static string CleanseButton() => "Cleanse Province";
-
-        public static string BuildTradingPostButton() => $"Trading Post ({GameSession.TradingPostCost}G)";
         public static string CaravanNetworkButton() => "Caravan Network";
         public static string ConfirmCaravanButton(int nodes) => $"Run Caravan ({nodes} nodes)";
         public static string HostileBuyoutButton(int cost) => $"Hostile Buyout ({cost}G)";
         public static string EmbargoButton(PlayerProfile guild) => $"Embargo P{guild.PlayerId}";
         public static string RaidCaravanButton(PlayerProfile guild) => $"Raid P{guild.PlayerId} Caravan";
-
-        public static string SellMercenaryButton(PlayerProfile buyer) =>
-            $"Sell Mercenary to P{buyer.PlayerId} ({GameSession.DefaultMercenaryPrice}G)";
 
         public static string AttackButton(PlayerProfile enemy) =>
             $"Attack P{enemy.PlayerId} ({Faction(enemy.Faction)})";
