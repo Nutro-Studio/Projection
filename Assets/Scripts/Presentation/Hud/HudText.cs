@@ -393,5 +393,25 @@ namespace Presentation.Hud
 
             return markers.Count == 0 ? string.Empty : $"Markers: {string.Join(" | ", markers)}";
         }
+
+        public static string DivineConversionButton(int count, int available) =>
+            available > 1 ? $"Divine Conversion ({count}/{available})" : "Divine Conversion";
+
+        public static string ConversionTitle(ConversionReport report)
+        {
+            string label = string.IsNullOrWhiteSpace(report.ProvinceName)
+                ? $"Province #{report.ProvinceId}"
+                : report.ProvinceName;
+            return $"Divine Conversion in {label}";
+        }
+
+        public static string ConversionSummary(ConversionReport report)
+        {
+            int diff = Math.Max(0, report.ZealotRawSum - report.DefenderRawSum);
+            int cap = report.MissionariesExpended + 1;
+            return
+                $"Zealots roll {report.ZealotRawSum} vs Defenders {report.DefenderRawSum} (difference: {diff}, cap: {cap}).\n" +
+                $"{report.MissionariesExpended} Missionary(s) expended; {report.ConvertedCount} enemy military unit(s) converted.";
+        }
     }
 }

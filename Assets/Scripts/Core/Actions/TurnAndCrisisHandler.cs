@@ -487,7 +487,7 @@ namespace Core.Actions
                 for (int u = 0; u < province.Units.Count; u++)
                 {
                     var unit = province.Units[u];
-                    if (unit.OwnerPlayerId != payer.PlayerId)
+                    if (unit.OwnerPlayerId != payer.PlayerId || unit.Type != UnitType.RegularMilitary)
                     {
                         kept.Add(unit);
                         continue;

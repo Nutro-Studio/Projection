@@ -52,6 +52,12 @@ namespace Core.Simulation
             remove => _state.BattleResolved -= value;
         }
 
+        public event Action<ConversionReport> ConversionResolved
+        {
+            add => _state.ConversionResolved += value;
+            remove => _state.ConversionResolved -= value;
+        }
+
         public event Action<ProvinceState> OnProvinceStateChanged
         {
             add => _state.ProvinceStateChanged += value;

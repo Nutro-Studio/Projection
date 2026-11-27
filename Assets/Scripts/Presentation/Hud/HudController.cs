@@ -56,6 +56,7 @@ namespace Presentation.Hud
 
             _session.StateChanged += Refresh;
             _session.BattleResolved += _diceRoll.Play;
+            _session.ConversionResolved += _diceRoll.PlayConversion;
             _interaction.Changed += Refresh;
             _crisisDirector.OnRulesetShifted += ShowRulesetShift;
             _crisisDirector.OnVictoryAchieved += ShowVictory;
@@ -323,6 +324,7 @@ namespace Presentation.Hud
                         _session.GetUnitsForPlayer(selectedProvinceId, player.PlayerId, UnitType.Missionary).Count;
                     bool hasMissionary = missionaryCount > 0;
                     bool hasEnemyMilitary = _session.GetCoexistingEnemyIds(selectedProvinceId).Count > 0;
+                    int selectedMissionaries = _interaction.MissionariesToConvert;
 
                     AddActionButton(
                         HudText.BuyMissionaryButton(config),
@@ -339,10 +341,39 @@ namespace Presentation.Hud
                         hasAp && hasMissionary && province.PresenceToken == null,
                         _interaction.Consecrate);
 
-                    AddActionButton(
-                        HudText.DivineConversionButton(),
-                        hasAp && hasMissionary && hasEnemyMilitary,
-                        () => _interaction.DivineConversion(missionaryCount));
+                    if (missionaryCount > 1)
+                    {
+                        var row = new VisualElement();
+                        row.style.flexDirection = FlexDirection.Row;
+                        row.style.marginTop = 3;
+
+                        var convertBtn = new Button(() => _interaction.DivineConversion(selectedMissionaries))
+                        {
+                            text = HudText.DivineConversionButton(selectedMissionaries, missionaryCount)
+                        };
+                        convertBtn.style.flexGrow = 1;
+                        convertBtn.SetEnabled(hasAp && hasEnemyMilitary);
+
+                        var minusBtn = new Button(_interaction.DecreaseMissionariesToConvert) { text = "-" };
+                        minusBtn.style.marginLeft = 4;
+                        minusBtn.SetEnabled(hasAp && selectedMissionaries > 1);
+
+                        var plusBtn = new Button(_interaction.IncreaseMissionariesToConvert) { text = "+" };
+                        plusBtn.style.marginLeft = 2;
+                        plusBtn.SetEnabled(hasAp && selectedMissionaries < missionaryCount);
+
+                        row.Add(convertBtn);
+                        row.Add(minusBtn);
+                        row.Add(plusBtn);
+                        _dynamicActionsContainer.Add(row);
+                    }
+                    else
+                    {
+                        AddActionButton(
+                            HudText.DivineConversionButton(1, missionaryCount),
+                            hasAp && hasMissionary && hasEnemyMilitary,
+                            () => _interaction.DivineConversion(1));
+                    }
 
                     AddCleanseButtonIfApplicable(province, player.PlayerId, hasAp && hasOwnMilitary);
                     break;
@@ -539,6 +570,7 @@ namespace Presentation.Hud
 
             _session.StateChanged -= Refresh;
             _session.BattleResolved -= _diceRoll.Play;
+            _session.ConversionResolved -= _diceRoll.PlayConversion;
             _interaction.Changed -= Refresh;
             if (_crisisDirector != null)
             {

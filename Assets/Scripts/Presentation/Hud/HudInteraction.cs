@@ -24,6 +24,7 @@ namespace Presentation.Hud
         private readonly GameSession _session;
         private readonly List<int> _caravanPath = new();
         private int _unitsToMove = int.MaxValue;
+        private int _missionariesToConvert = 1;
 
         public event Action Changed;
 
@@ -449,6 +450,7 @@ namespace Presentation.Hud
             SelectedProvinceId = provinceId;
             MoveUnitTypeFilter = null;
             _unitsToMove = int.MaxValue;
+            _missionariesToConvert = 1;
         }
 
         private List<int> GetFilteredMovableUnitIds(int provinceId)
@@ -498,6 +500,27 @@ namespace Presentation.Hud
             {
                 Targeting = TargetingMode.None;
             }
+        }
+
+        public int AvailableMissionaries =>
+            SelectedProvinceId == NoSelection
+                ? 0
+                : _session.GetUnitsForPlayer(SelectedProvinceId, _session.CurrentPlayer.PlayerId, UnitType.Missionary)
+                    .Count;
+
+        public int MissionariesToConvert =>
+            Math.Clamp(_missionariesToConvert, Math.Min(1, AvailableMissionaries), Math.Max(1, AvailableMissionaries));
+
+        public void IncreaseMissionariesToConvert()
+        {
+            _missionariesToConvert = Math.Min(AvailableMissionaries, MissionariesToConvert + 1);
+            Changed?.Invoke();
+        }
+
+        public void DecreaseMissionariesToConvert()
+        {
+            _missionariesToConvert = Math.Max(1, MissionariesToConvert - 1);
+            Changed?.Invoke();
         }
     }
 }

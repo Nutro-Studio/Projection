@@ -24,6 +24,7 @@ namespace Core.Simulation
 
         public event Action StateChanged;
         public event Action<CombatReport> BattleResolved;
+        public event Action<ConversionReport> ConversionResolved;
         public event Action<ProvinceState> ProvinceStateChanged;
 
         public PlayerProfile CurrentPlayer => Players[CurrentPlayerIndex];
@@ -131,5 +132,6 @@ namespace Core.Simulation
 
         public void NotifyStateChanged() => StateChanged?.Invoke();
         public void NotifyBattleResolved(CombatReport report) => BattleResolved?.Invoke(report);
+        public void NotifyConversionResolved(ConversionReport report) => ConversionResolved?.Invoke(report);
     }
 }

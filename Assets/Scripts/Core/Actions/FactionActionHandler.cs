@@ -139,7 +139,9 @@ namespace Core.Actions
 
             var (z1, z2, z3) = _contestDice.Roll3D4();
             var (e1, e2, e3) = _contestDice.Roll3D4();
-            int rollGain = Math.Max(0, (z1 + z2 + z3) - (e1 + e2 + e3));
+            int zealotSum = z1 + z2 + z3;
+            int enemySum = e1 + e2 + e3;
+            int rollGain = Math.Max(0, zealotSum - enemySum);
             int maxGain = missionaryCount + 1;
             int toConvert = Math.Min(Math.Min(rollGain, maxGain), enemyMilitaryCount);
 
@@ -173,6 +175,11 @@ namespace Core.Actions
 
             _state.SetProvince(province.WithUnits(updatedUnits));
             _state.SpendActionPoint();
+            _state.NotifyConversionResolved(new ConversionReport(
+                province.Name, province.Id, player.PlayerId,
+                missionaryCount, convertedSoFar,
+                zealotSum, enemySum,
+                (z1, z2, z3), (e1, e2, e3)));
             _state.NotifyStateChanged();
             return ActionResult.Ok;
         }
