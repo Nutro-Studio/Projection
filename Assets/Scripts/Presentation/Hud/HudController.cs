@@ -169,9 +169,11 @@ namespace Presentation.Hud
 
         private void Refresh()
         {
+            _interaction.SyncPendingTargeting();
+
             var player = _session.CurrentPlayer;
             _playerLabel.text = HudText.Player(player);
-            _playerFlag.style.unityBackgroundImageTintColor = FactionPalette.For(player.Faction);
+            _playerFlag.style.unityBackgroundImageTintColor = PlayerPalette.ForPlayerId(player.PlayerId);
             _apLabel.text = HudText.ActionPoints(player.ActionPoints, PlayerProfile.BaseActionPoints);
             _goldLabel.text = HudText.Gold(player.Gold);
             _vpLabel.text = HudText.VictoryPoints(player.VictoryPoints, _session.Config);
@@ -514,7 +516,8 @@ namespace Presentation.Hud
                 ? failure
                 : HudText.Hint(
                     _interaction.SelectedProvinceId != HudInteraction.NoSelection,
-                    _interaction.IsTargetingMove);
+                    _interaction.IsTargetingMove,
+                    _interaction.IsSelectingGuildCapital);
         }
 
         private void ShowRulesetShift(CrisisShiftResult shift)

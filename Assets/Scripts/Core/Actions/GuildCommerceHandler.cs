@@ -491,5 +491,39 @@ namespace Core.Actions
 
             return -1;
         }
+
+        public ActionResult PlaceTransitionTradingPost(int provinceId)
+        {
+            if (_state.IsGameOver) return ActionResult.GameOver;
+
+            var player = _state.CurrentPlayer;
+            if (_state.PendingGuildCapitalPlayerId != player.PlayerId || player.Faction != FactionType.Guilds)
+            {
+                return ActionResult.InvalidRulesetShift;
+            }
+
+            if (provinceId < 0 || provinceId >= _state.Provinces.Length)
+            {
+                return ActionResult.InvalidBattleTarget;
+            }
+
+            var province = _state.Provinces[provinceId];
+            if (province.OwnerId == player.PlayerId || province.HasTradingPost)
+            {
+                return ActionResult.AlreadyBuilt;
+            }
+
+            var updatedUnits = new List<UnitInstance>(province.Units);
+            if (IndexOfPlayerUnitType(province.Units, player.PlayerId, UnitType.Trader) < 0)
+            {
+                updatedUnits.Add(new UnitInstance(
+                    _state.NextUnitId++, player.PlayerId, FactionType.Guilds, UnitType.Trader, 1, 1));
+            }
+
+            _state.SetProvince(province.WithTradingPost(player.PlayerId).WithUnits(updatedUnits));
+            _state.PendingGuildCapitalPlayerId = -1;
+            _state.NotifyStateChanged();
+            return ActionResult.Ok;
+        }
     }
 }

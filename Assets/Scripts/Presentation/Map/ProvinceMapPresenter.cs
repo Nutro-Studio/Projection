@@ -47,7 +47,7 @@ namespace Presentation.Map
         private void ShowProvince(ProvinceState province)
         {
             var owner = _session.GetPlayer(province.OwnerId);
-            var color = owner == null ? FactionPalette.Neutral : FactionPalette.For(owner.Faction);
+            var color = owner == null ? PlayerPalette.Neutral : PlayerPalette.ForPlayerId(owner.PlayerId);
             _views[province.Id].ShowState(province, color, owner != null, _session.CurrentPlayer.PlayerId);
         }
 

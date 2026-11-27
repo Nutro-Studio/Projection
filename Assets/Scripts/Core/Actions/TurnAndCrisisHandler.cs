@@ -227,6 +227,7 @@ namespace Core.Actions
                     }
                     else
                     {
+                        _state.ActiveCaravans.Remove(unit.Id);
                         unitsChanged = true;
                     }
                 }
@@ -239,7 +240,30 @@ namespace Core.Actions
                 for (int p = 0; p < _state.Provinces.Length; p++)
                 {
                     var province = _state.Provinces[p];
-                    if (province.OwnerId == playerId && province.RebellionCell == null)
+                    if (province.OwnerId != playerId) continue;
+
+                    bool hasEnemyMilitary = false;
+                    for (int u = 0; u < province.Units.Count; u++)
+                    {
+                        var unit = province.Units[u];
+                        if (unit.OwnerPlayerId != playerId && unit.Type == UnitType.RegularMilitary)
+                        {
+                            hasEnemyMilitary = true;
+                            break;
+                        }
+                    }
+
+                    if (!hasEnemyMilitary)
+                    {
+                        var collapsed = province.WithOccupation(ProvinceState.NeutralOwner, province.Units);
+                        if (collapsed.RebellionCell == null)
+                        {
+                            collapsed = collapsed.WithRebellionCell(new RebellionCell(playerId, false));
+                        }
+
+                        _state.SetProvinceDirect(collapsed);
+                    }
+                    else if (province.RebellionCell == null)
                     {
                         _state.SetProvince(province.WithRebellionCell(new RebellionCell(playerId, false)));
                     }
@@ -286,8 +310,10 @@ namespace Core.Actions
                     }
                 }
             }
-            else if (shift.IsAscension)
+
+            if (shift.IsAscension)
             {
+                int capitalId = FindCapitalProvinceId(playerId, preferRebelCells: true);
                 for (int p = 0; p < _state.Provinces.Length; p++)
                 {
                     var province = _state.Provinces[p];
@@ -295,29 +321,141 @@ namespace Core.Actions
                     if (!isRebelProvince) continue;
 
                     var updated = province.WithRebellionCell(null);
-                    bool hasPlayerMilitary = false;
-                    for (int u = 0; u < updated.Units.Count; u++)
+                    int playerStrength = BoardHegemonyEvaluator.CalculateStrength(updated, playerId);
+                    int maxEnemyStrength = GetMaxEnemyStrength(updated, playerId);
+
+                    if (p == capitalId)
                     {
-                        if (updated.Units[u].OwnerPlayerId == playerId &&
-                            updated.Units[u].Type == UnitType.RegularMilitary)
+                        var cleared = new List<UnitInstance>(updated.Units.Count);
+                        for (int u = 0; u < updated.Units.Count; u++)
                         {
-                            hasPlayerMilitary = true;
-                            break;
+                            var unit = updated.Units[u];
+                            if (unit.OwnerPlayerId != playerId && unit.Type == UnitType.RegularMilitary) continue;
+                            cleared.Add(unit);
                         }
+
+                        updated = updated.WithUnits(cleared);
+                        maxEnemyStrength = 0;
                     }
 
-                    if (!hasPlayerMilitary)
+                    if (playerStrength >= maxEnemyStrength)
                     {
-                        var garrison = new List<UnitInstance>(updated.Units)
+                        bool hasPlayerMilitary = false;
+                        for (int u = 0; u < updated.Units.Count; u++)
                         {
-                            new(_state.NextUnitId++, playerId, shift.NewFaction, UnitType.RegularMilitary, 1, 1)
-                        };
-                        updated = updated.WithUnits(garrison);
+                            if (updated.Units[u].OwnerPlayerId == playerId &&
+                                updated.Units[u].Type == UnitType.RegularMilitary)
+                            {
+                                hasPlayerMilitary = true;
+                                break;
+                            }
+                        }
+
+                        if (!hasPlayerMilitary)
+                        {
+                            var garrison = new List<UnitInstance>(updated.Units)
+                            {
+                                new(_state.NextUnitId++, playerId, shift.NewFaction, UnitType.RegularMilitary, 1, 1)
+                            };
+                            updated = updated.WithUnits(garrison);
+                        }
                     }
 
                     _state.SetProvince(updated);
                 }
             }
+
+            if (shift.NewFaction == FactionType.Guilds)
+            {
+                SetupGuildTransitionCapitals(playerId);
+            }
+        }
+
+        private void SetupGuildTransitionCapitals(int playerId)
+        {
+            int ownCapitalId = FindCapitalProvinceId(playerId, preferRebelCells: false);
+            if (ownCapitalId >= 0)
+            {
+                var cap = _state.Provinces[ownCapitalId];
+                var units = new List<UnitInstance>(cap.Units);
+                bool hasTrader = false;
+                for (int u = 0; u < units.Count; u++)
+                {
+                    if (units[u].OwnerPlayerId == playerId && units[u].Type == UnitType.Trader)
+                    {
+                        hasTrader = true;
+                        break;
+                    }
+                }
+
+                if (!hasTrader)
+                {
+                    units.Add(
+                        new UnitInstance(_state.NextUnitId++, playerId, FactionType.Guilds, UnitType.Trader, 1, 1));
+                }
+
+                _state.SetProvince(cap.WithTradingPost(playerId).WithUnits(units));
+            }
+
+            bool hasValidSecondTarget = false;
+            for (int i = 0; i < _state.Provinces.Length; i++)
+            {
+                var p = _state.Provinces[i];
+                if (p.OwnerId != playerId && !p.HasTradingPost)
+                {
+                    hasValidSecondTarget = true;
+                    break;
+                }
+            }
+
+            _state.PendingGuildCapitalPlayerId = hasValidSecondTarget ? playerId : -1;
+        }
+
+        private int FindCapitalProvinceId(int playerId, bool preferRebelCells)
+        {
+            int bestId = -1;
+            int bestScore = -1;
+
+            for (int i = 0; i < _state.Provinces.Length; i++)
+            {
+                var p = _state.Provinces[i];
+                bool candidate = preferRebelCells
+                    ? (p.RebellionCell != null && p.RebellionCell.OwnerId == playerId) || p.OwnerId == playerId
+                    : p.OwnerId == playerId;
+                if (!candidate) continue;
+
+                int score = BoardHegemonyEvaluator.CalculateStrength(p, playerId) * 10
+                            + (p.OwnerId == playerId ? 5 : 0)
+                            + (p.HasFort || p.HasChurch ? 2 : 0);
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestId = i;
+                }
+            }
+
+            if (bestId >= 0) return bestId;
+
+            for (int i = 0; i < _state.Provinces.Length; i++)
+            {
+                if (!_state.Provinces[i].HasTradingPost) return i;
+            }
+
+            return _state.Provinces.Length > 0 ? 0 : -1;
+        }
+
+        private int GetMaxEnemyStrength(ProvinceState province, int playerId)
+        {
+            int maxEnemy = 0;
+            for (int i = 0; i < _state.Players.Length; i++)
+            {
+                int otherId = _state.Players[i].PlayerId;
+                if (otherId == playerId) continue;
+                int s = BoardHegemonyEvaluator.CalculateStrength(province, otherId);
+                if (s > maxEnemy) maxEnemy = s;
+            }
+
+            return maxEnemy;
         }
 
         private int CalculateTurnEndVictoryPoints(PlayerProfile player, int controlledProvinces, int bankedGold) =>

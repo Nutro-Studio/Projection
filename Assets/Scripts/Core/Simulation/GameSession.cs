@@ -224,5 +224,11 @@ namespace Core.Simulation
             _guildCommerce.GetAssignedCaravanPath(provinceId, playerId);
 
         public ActionResult AdvanceCaravan(int provinceId) => _guildCommerce.AdvanceCaravan(provinceId);
+
+        public bool IsAwaitingGuildCapitalSelection =>
+            !IsGameOver && _state.PendingGuildCapitalPlayerId == CurrentPlayer.PlayerId;
+
+        public ActionResult PlaceTransitionTradingPost(int provinceId) =>
+            _guildCommerce.PlaceTransitionTradingPost(provinceId);
     }
 }

@@ -10,7 +10,8 @@ namespace Presentation.Hud
     {
         None,
         Move,
-        Caravan
+        Caravan,
+        SelectGuildPostCapital
     }
 
     /// <summary>
@@ -33,6 +34,7 @@ namespace Presentation.Hud
 
         public bool IsTargetingMove => Targeting == TargetingMode.Move;
         public bool IsTargetingCaravan => Targeting == TargetingMode.Caravan;
+        public bool IsSelectingGuildCapital => Targeting == TargetingMode.SelectGuildPostCapital;
         public IReadOnlyList<int> CaravanPath => _caravanPath;
 
         public int MovableUnitCount =>
@@ -71,6 +73,19 @@ namespace Presentation.Hud
 
             if (provinceId == origin)
             {
+                Changed?.Invoke();
+                return;
+            }
+
+            if (Targeting == TargetingMode.SelectGuildPostCapital)
+            {
+                LastResult = _session.PlaceTransitionTradingPost(provinceId);
+                if (LastResult == ActionResult.Ok)
+                {
+                    Targeting = TargetingMode.None;
+                    Select(provinceId);
+                }
+
                 Changed?.Invoke();
                 return;
             }
@@ -220,6 +235,8 @@ namespace Presentation.Hud
 
         public void ClickEmptySpace()
         {
+            if (Targeting == TargetingMode.SelectGuildPostCapital) return;
+
             LastResult = ActionResult.Ok;
             Targeting = TargetingMode.None;
             _caravanPath.Clear();
@@ -229,7 +246,7 @@ namespace Presentation.Hud
 
         public void CancelTargeting()
         {
-            if (Targeting == TargetingMode.None) return;
+            if (Targeting == TargetingMode.None || Targeting == TargetingMode.SelectGuildPostCapital) return;
 
             Targeting = TargetingMode.None;
             _caravanPath.Clear();
@@ -418,6 +435,12 @@ namespace Presentation.Hud
                 return !_caravanPath.Contains(provinceId) && _session.Provinces[tail].IsAdjacentTo(provinceId);
             }
 
+            if (Targeting == TargetingMode.SelectGuildPostCapital)
+            {
+                var p = _session.Provinces[provinceId];
+                return p.OwnerId != _session.CurrentPlayer.PlayerId && !p.HasTradingPost;
+            }
+
             return false;
         }
 
@@ -463,6 +486,18 @@ namespace Presentation.Hud
             _caravanPath.Clear();
             LastResult = _session.Capitulate();
             Changed?.Invoke();
+        }
+
+        public void SyncPendingTargeting()
+        {
+            if (_session.IsAwaitingGuildCapitalSelection)
+            {
+                Targeting = TargetingMode.SelectGuildPostCapital;
+            }
+            else if (Targeting == TargetingMode.SelectGuildPostCapital)
+            {
+                Targeting = TargetingMode.None;
+            }
         }
     }
 }

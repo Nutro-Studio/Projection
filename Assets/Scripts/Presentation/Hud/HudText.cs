@@ -228,8 +228,10 @@ namespace Presentation.Hud
             _ => result.ToString()
         };
 
-        public static string Hint(bool hasSelection, bool isTargetingMove)
+        public static string Hint(bool hasSelection, bool isTargetingMove, bool isSelectingGuildCapital = false)
         {
+            if (isSelectingGuildCapital)
+                return "Select an enemy or neutral province to place your second free Trading Post.";
             if (isTargetingMove) return "Click a highlighted province to move. Esc cancels.";
 
             return hasSelection

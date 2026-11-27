@@ -19,6 +19,7 @@ namespace Core.Simulation
         public int NextUnitId;
         public int QualifyingCaravanRoutesThisTurn;
         public int TurnNumber = 1;
+        public int PendingGuildCapitalPlayerId = -1;
         public bool IsGameOver;
 
         public event Action StateChanged;
