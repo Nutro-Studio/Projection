@@ -13,15 +13,18 @@ namespace Core.Simulation
         public readonly HashSet<(int EmbargoerId, int GuildId)> ActiveEmbargoes = new();
         public readonly bool CrisisEnabled;
         public readonly GameBalanceConfig Config;
+        public readonly Dictionary<int, ActiveCaravanRoute> ActiveCaravans = new();
 
         public int CurrentPlayerIndex;
         public int NextUnitId;
         public int QualifyingCaravanRoutesThisTurn;
         public int TurnNumber = 1;
+        public int PendingGuildCapitalPlayerId = -1;
         public bool IsGameOver;
 
         public event Action StateChanged;
         public event Action<CombatReport> BattleResolved;
+        public event Action<ConversionReport> ConversionResolved;
         public event Action<ProvinceState> ProvinceStateChanged;
 
         public PlayerProfile CurrentPlayer => Players[CurrentPlayerIndex];
@@ -113,7 +116,22 @@ namespace Core.Simulation
             return count;
         }
 
+        public sealed class ActiveCaravanRoute
+        {
+            public readonly int TraderUnitId;
+            public readonly List<int> Path;
+            public int CurrentStepIndex;
+
+            public ActiveCaravanRoute(int traderUnitId, List<int> path, int currentStepIndex = 0)
+            {
+                TraderUnitId = traderUnitId;
+                Path = path;
+                CurrentStepIndex = currentStepIndex;
+            }
+        }
+
         public void NotifyStateChanged() => StateChanged?.Invoke();
         public void NotifyBattleResolved(CombatReport report) => BattleResolved?.Invoke(report);
+        public void NotifyConversionResolved(ConversionReport report) => ConversionResolved?.Invoke(report);
     }
 }

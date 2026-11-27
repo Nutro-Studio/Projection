@@ -52,6 +52,12 @@ namespace Core.Simulation
             remove => _state.BattleResolved -= value;
         }
 
+        public event Action<ConversionReport> ConversionResolved
+        {
+            add => _state.ConversionResolved += value;
+            remove => _state.ConversionResolved -= value;
+        }
+
         public event Action<ProvinceState> OnProvinceStateChanged
         {
             add => _state.ProvinceStateChanged += value;
@@ -215,5 +221,20 @@ namespace Core.Simulation
         public ActionResult Capitulate() => _turnAndCrisis.Capitulate();
         public ActionResult VoluntaryShift(FactionType targetFaction) => _turnAndCrisis.VoluntaryShift(targetFaction);
         public ActionResult Ascend(FactionType targetLandedFaction) => _turnAndCrisis.Ascend(targetLandedFaction);
+        public int GetTradingPostBuildCost(int playerId) => _guildCommerce.GetTradingPostBuildCost(playerId);
+
+        public bool HasAssignedCaravan(int provinceId, int playerId) =>
+            _guildCommerce.HasAssignedCaravan(provinceId, playerId);
+
+        public IReadOnlyList<int> GetAssignedCaravanPath(int provinceId, int playerId) =>
+            _guildCommerce.GetAssignedCaravanPath(provinceId, playerId);
+
+        public ActionResult AdvanceCaravan(int provinceId) => _guildCommerce.AdvanceCaravan(provinceId);
+
+        public bool IsAwaitingGuildCapitalSelection =>
+            !IsGameOver && _state.PendingGuildCapitalPlayerId == CurrentPlayer.PlayerId;
+
+        public ActionResult PlaceTransitionTradingPost(int provinceId) =>
+            _guildCommerce.PlaceTransitionTradingPost(provinceId);
     }
 }

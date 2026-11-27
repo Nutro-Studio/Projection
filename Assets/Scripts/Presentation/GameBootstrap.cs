@@ -19,6 +19,9 @@ namespace Presentation
         [SerializeField] private Transform _mapRoot;
         [SerializeField] private bool _crisisEnabled = true;
 
+        [Tooltip("Terrain tile per province, indexed by province id.")] [SerializeField]
+        private Sprite[] _terrainTiles;
+
         private ProvinceMapPresenter _mapPresenter;
 
         private void Start()
@@ -62,7 +65,7 @@ namespace Presentation
         private ProvinceView[] SpawnContinentalViews(ProvinceSeed[] seeds)
         {
             var parent = _mapRoot != null ? _mapRoot : transform;
-            var positions = MapLayout.CreateContinentalHexPositions21();
+            var positions = MapLayout.CreateForceDirectedPositions(seeds);
             var views = new ProvinceView[seeds.Length];
 
             for (int i = 0; i < seeds.Length; i++)
@@ -71,6 +74,7 @@ namespace Presentation
                 view.name = $"Province_{i}";
                 view.transform.localPosition = new Vector3(positions[i].x, positions[i].y, 0f);
                 view.ConfigureFromSeed(seeds[i]);
+                view.SetTerrain(_terrainTiles != null && i < _terrainTiles.Length ? _terrainTiles[i] : null);
                 views[i] = view;
             }
 

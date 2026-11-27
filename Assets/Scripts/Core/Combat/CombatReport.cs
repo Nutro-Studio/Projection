@@ -31,4 +31,39 @@
             Result = result;
         }
     }
+
+    public sealed class ConversionReport
+    {
+        public string ProvinceName { get; }
+        public int ProvinceId { get; }
+        public int ZealotPlayerId { get; }
+        public int MissionariesExpended { get; }
+        public int ConvertedCount { get; }
+        public int ZealotRawSum { get; }
+        public int DefenderRawSum { get; }
+        public (int roll1, int roll2, int roll3) ZealotRolls { get; }
+        public (int roll1, int roll2, int roll3) DefenderRolls { get; }
+
+        public ConversionReport(
+            string provinceName,
+            int provinceId,
+            int zealotPlayerId,
+            int missionariesExpended,
+            int convertedCount,
+            int zealotRawSum,
+            int defenderRawSum,
+            (int roll1, int roll2, int roll3) zealotRolls,
+            (int roll1, int roll2, int roll3) defenderRolls)
+        {
+            ProvinceName = provinceName;
+            ProvinceId = provinceId;
+            ZealotPlayerId = zealotPlayerId;
+            MissionariesExpended = missionariesExpended;
+            ConvertedCount = convertedCount;
+            ZealotRawSum = zealotRawSum;
+            DefenderRawSum = defenderRawSum;
+            ZealotRolls = zealotRolls;
+            DefenderRolls = defenderRolls;
+        }
+    }
 }

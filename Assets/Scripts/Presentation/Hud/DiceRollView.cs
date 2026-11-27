@@ -25,10 +25,11 @@ namespace Presentation.Hud
         private readonly Random _tumbleRandom = new();
 
         private CombatReport _report;
+        private ConversionReport _conversionReport;
         private float _tumbleLeft;
         private float _nextFaceChange;
 
-        public bool IsVisible => _report != null;
+        public bool IsVisible => _report != null || _conversionReport != null;
 
         public DiceRollView(VisualElement root)
         {
@@ -52,9 +53,22 @@ namespace Presentation.Hud
         public void Play(CombatReport report)
         {
             _report = report;
+            _conversionReport = null;
+            StartTumble(HudText.BattleTitle(report));
+        }
+
+        public void PlayConversion(ConversionReport report)
+        {
+            _conversionReport = report;
+            _report = null;
+            StartTumble(HudText.ConversionTitle(report));
+        }
+
+        private void StartTumble(string titleText)
+        {
             _tumbleLeft = TumbleSeconds;
             _nextFaceChange = 0f;
-            _title.text = HudText.BattleTitle(report);
+            _title.text = titleText;
             _attackerTotal.text = string.Empty;
             _defenderTotal.text = string.Empty;
             _summary.text = string.Empty;
@@ -64,7 +78,7 @@ namespace Presentation.Hud
 
         public void Tick(float deltaTime)
         {
-            if (_report == null || _tumbleLeft <= 0f) return;
+            if (!IsVisible || _tumbleLeft <= 0f) return;
 
             _tumbleLeft -= deltaTime;
             if (_tumbleLeft <= 0f)
@@ -92,11 +106,23 @@ namespace Presentation.Hud
             }
 
             _report = null;
+            _conversionReport = null;
             _overlay.style.display = DisplayStyle.None;
         }
 
         private void Settle()
         {
+            if (_conversionReport != null)
+            {
+                ShowFaces(_attackerDice, _conversionReport.ZealotRolls);
+                ShowFaces(_defenderDice, _conversionReport.DefenderRolls);
+                _attackerTotal.text = HudText.DiceTotal(_conversionReport.ZealotRawSum);
+                _defenderTotal.text = HudText.DiceTotal(_conversionReport.DefenderRawSum);
+                _summary.text = HudText.ConversionSummary(_conversionReport);
+                _continue.style.visibility = Visibility.Visible;
+                return;
+            }
+
             var result = _report.Result;
             ShowFaces(_attackerDice, result.AttackerRolls);
             ShowFaces(_defenderDice, result.DefenderRolls);

@@ -1,38 +1,136 @@
-﻿using UnityEngine;
+﻿using System;
+using System.Collections.Generic;
+using Core.Setup;
+using UnityEngine;
 
 namespace Presentation.Map
 {
     public static class MapLayout
     {
-        public static Vector2[] CreateContinentalHexPositions21(float colSpacing = 2.5f, float rowSpacing = 1.85f) =>
-            new[]
+        /// <summary>
+        /// Computes an evenly spaced, non-overlapping node layout driven by the adjacency graph.
+        /// Seeded West-to-East by province index so Militants stay West, Frontier in the middle, and Zealots East.
+        /// </summary>
+        public static Vector2[] CreateForceDirectedPositions(
+            IReadOnlyList<ProvinceSeed> seeds,
+            float targetEdgeLength = 5.4f,
+            float minNodeDistance = 4.6f,
+            int iterations = 350)
+        {
+            int n = seeds.Count;
+            var pos = new Vector2[n];
+            var disp = new Vector2[n];
+
+            // Deterministic West-to-East initial placement to preserve faction geography and avoid tangled crossings
+            for (int i = 0; i < n; i++)
             {
-                // --- Militant West (0..7) ---
-                new Vector2(-4.5f * colSpacing, 0.0f * rowSpacing), // 0: Militant Capital
-                new Vector2(-3.5f * colSpacing, 1.2f * rowSpacing), // 1
-                new Vector2(-3.5f * colSpacing, 0.0f * rowSpacing), // 2
-                new Vector2(-3.5f * colSpacing, -1.2f * rowSpacing), // 3
-                new Vector2(-2.5f * colSpacing, 1.4f * rowSpacing), // 4
-                new Vector2(-2.5f * colSpacing, 0.0f * rowSpacing), // 5
-                new Vector2(-2.5f * colSpacing, -1.4f * rowSpacing), // 6
-                new Vector2(-1.6f * colSpacing, 0.7f * rowSpacing), // 7
+                float t = n > 1 ? (float)i / (n - 1) : 0.5f;
+                float x = Mathf.Lerp(-16f, 16f, t);
+                float y = ((i % 3) - 1) * 4.2f + Mathf.Sin(i * 1.7f) * 1.5f;
+                pos[i] = new Vector2(x, y);
+            }
 
-                // --- Neutral Frontier Choke Points (8..12) ---
-                new Vector2(-0.7f * colSpacing, 1.6f * rowSpacing), // 8: North Choke
-                new Vector2(-1.5f * colSpacing, -0.7f * rowSpacing), // 9: West-Center Frontier
-                new Vector2(-0.5f * colSpacing, 0.5f * rowSpacing), // 10: Central Crossroads
-                new Vector2(-0.5f * colSpacing, -0.6f * rowSpacing), // 11: South-Center Frontier
-                new Vector2(-0.7f * colSpacing, -1.6f * rowSpacing), // 12: South Choke
+            float k = targetEdgeLength;
+            float area = k * k * n;
+            float maxStep = targetEdgeLength * 0.8f;
 
-                // --- Zealot East (13..20) ---
-                new Vector2(4.5f * colSpacing, 0.0f * rowSpacing), // 13: Zealot Capital
-                new Vector2(0.5f * colSpacing, 0.0f * rowSpacing), // 14: Zealot Border
-                new Vector2(0.8f * colSpacing, 1.5f * rowSpacing), // 15
-                new Vector2(1.6f * colSpacing, 0.7f * rowSpacing), // 16
-                new Vector2(1.6f * colSpacing, -0.7f * rowSpacing), // 17
-                new Vector2(0.8f * colSpacing, -1.5f * rowSpacing), // 18
-                new Vector2(2.6f * colSpacing, 0.0f * rowSpacing), // 19
-                new Vector2(3.5f * colSpacing, -0.9f * rowSpacing) // 20
-            };
+            for (int iter = 0; iter < iterations; iter++)
+            {
+                Array.Clear(disp, 0, n);
+                float temp = maxStep * (1f - (float)iter / iterations);
+
+                // Repulsive forces between all pairs
+                for (int i = 0; i < n; i++)
+                {
+                    for (int j = i + 1; j < n; j++)
+                    {
+                        Vector2 delta = pos[i] - pos[j];
+                        float dist = Mathf.Max(delta.magnitude, 0.01f);
+                        Vector2 dir = delta / dist;
+
+                        float force = (k * k) / dist;
+                        if (dist < minNodeDistance)
+                        {
+                            // Strong short-range repulsion to guarantee zero overlap
+                            force += (minNodeDistance - dist) * k * 2.5f;
+                        }
+
+                        Vector2 push = dir * force;
+                        disp[i] += push;
+                        disp[j] -= push;
+                    }
+                }
+
+                // Attractive spring forces along graph edges
+                for (int i = 0; i < n; i++)
+                {
+                    var neighbours = seeds[i].Neighbours;
+                    for (int idx = 0; idx < neighbours.Count; idx++)
+                    {
+                        int j = neighbours[idx];
+                        if (i >= j || j < 0 || j >= n) continue;
+
+                        Vector2 delta = pos[i] - pos[j];
+                        float dist = Mathf.Max(delta.magnitude, 0.01f);
+                        Vector2 dir = delta / dist;
+
+                        float force = (dist * dist) / k;
+                        Vector2 pull = dir * force;
+                        disp[i] -= pull;
+                        disp[j] += pull;
+                    }
+                }
+
+                // Gentle horizontal bias to keep West-to-East orientation readable
+                for (int i = 0; i < n; i++)
+                {
+                    float targetX = Mathf.Lerp(-15f, 15f, n > 1 ? (float)i / (n - 1) : 0.5f);
+                    disp[i].x += (targetX - pos[i].x) * 0.15f;
+                    disp[i].y *= 0.92f; // Slightly flatten vertical aspect ratio for 16:9 screens
+                }
+
+                // Apply clamped displacement
+                for (int i = 0; i < n; i++)
+                {
+                    float mag = disp[i].magnitude;
+                    if (mag > 0.0001f)
+                    {
+                        pos[i] += (disp[i] / mag) * Mathf.Min(mag, temp);
+                    }
+                }
+            }
+
+            // Hard separation pass to strictly enforce minNodeDistance
+            for (int pass = 0; pass < 40; pass++)
+            {
+                bool moved = false;
+                for (int i = 0; i < n; i++)
+                {
+                    for (int j = i + 1; j < n; j++)
+                    {
+                        Vector2 delta = pos[i] - pos[j];
+                        float dist = delta.magnitude;
+                        if (dist < minNodeDistance)
+                        {
+                            Vector2 dir = dist > 0.0001f ? delta / dist : Vector2.right;
+                            float overlap = (minNodeDistance - dist) * 0.5f;
+                            pos[i] += dir * overlap;
+                            pos[j] -= dir * overlap;
+                            moved = true;
+                        }
+                    }
+                }
+
+                if (!moved) break;
+            }
+
+            // Re-center around origin
+            Vector2 centroid = Vector2.zero;
+            for (int i = 0; i < n; i++) centroid += pos[i];
+            centroid /= Mathf.Max(1, n);
+            for (int i = 0; i < n; i++) pos[i] -= centroid;
+
+            return pos;
+        }
     }
 }

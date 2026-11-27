@@ -27,6 +27,6 @@
         TraderCapReached,
         TargetEmbargoed,
         NotEmbargoed,
-        CannotBuyoutWithExistingTradingPost
+        CaravanAlreadyAssigned
     }
 }
