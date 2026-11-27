@@ -1,14 +1,17 @@
 using System;
 using System.Collections.Generic;
 using Core.Combat;
-using Presentation.Prototype;
+using Core.Simulation;
+using Core.Actions;
 
 namespace Presentation.Hud
 {
     public enum TargetingMode
     {
         None,
-        Move
+        Move,
+        Caravan,
+        SelectGuildPostCapital
     }
 
     /// <summary>
@@ -18,17 +21,22 @@ namespace Presentation.Hud
     {
         public const int NoSelection = -1;
 
-        private readonly PrototypeGameSession _session;
+        private readonly GameSession _session;
+        private readonly List<int> _caravanPath = new();
         private int _unitsToMove = int.MaxValue;
+        private int _missionariesToConvert = 1;
 
         public event Action Changed;
 
         public int SelectedProvinceId { get; private set; } = NoSelection;
         public TargetingMode Targeting { get; private set; } = TargetingMode.None;
         public UnitType? MoveUnitTypeFilter { get; private set; }
-        public CommandResult LastResult { get; private set; } = CommandResult.Ok;
+        public ActionResult LastResult { get; private set; } = ActionResult.Ok;
 
         public bool IsTargetingMove => Targeting == TargetingMode.Move;
+        public bool IsTargetingCaravan => Targeting == TargetingMode.Caravan;
+        public bool IsSelectingGuildCapital => Targeting == TargetingMode.SelectGuildPostCapital;
+        public IReadOnlyList<int> CaravanPath => _caravanPath;
 
         public int MovableUnitCount =>
             SelectedProvinceId == NoSelection ? 0 : GetFilteredMovableUnitIds(SelectedProvinceId).Count;
@@ -38,18 +46,25 @@ namespace Presentation.Hud
         /// </summary>
         public int UnitsToMove => Math.Clamp(_unitsToMove, Math.Min(1, MovableUnitCount), MovableUnitCount);
 
-        public HudInteraction(PrototypeGameSession session)
+        public HudInteraction(GameSession session)
         {
             _session = session ?? throw new ArgumentNullException(nameof(session));
         }
 
         public void ClickProvince(int provinceId)
         {
-            LastResult = CommandResult.Ok;
+            LastResult = ActionResult.Ok;
 
             if (Targeting == TargetingMode.None)
             {
                 Select(provinceId);
+                Changed?.Invoke();
+                return;
+            }
+
+            if (Targeting == TargetingMode.Caravan)
+            {
+                HandleCaravanWaypointClick(provinceId);
                 Changed?.Invoke();
                 return;
             }
@@ -63,8 +78,21 @@ namespace Presentation.Hud
                 return;
             }
 
-            LastResult = _session.MoveArmy(new MoveArmyCommand(origin, provinceId, TakeUnitsToMove(origin)));
-            if (LastResult == CommandResult.Ok)
+            if (Targeting == TargetingMode.SelectGuildPostCapital)
+            {
+                LastResult = _session.PlaceTransitionTradingPost(provinceId);
+                if (LastResult == ActionResult.Ok)
+                {
+                    Targeting = TargetingMode.None;
+                    Select(provinceId);
+                }
+
+                Changed?.Invoke();
+                return;
+            }
+
+            LastResult = _session.MoveArmy(new MoveUnitsCommand(origin, provinceId, TakeUnitsToMove(origin)));
+            if (LastResult == ActionResult.Ok)
             {
                 Select(provinceId);
             }
@@ -72,19 +100,157 @@ namespace Presentation.Hud
             Changed?.Invoke();
         }
 
+        private void HandleCaravanWaypointClick(int provinceId)
+        {
+            int lastNode = _caravanPath[_caravanPath.Count - 1];
+            if (provinceId == lastNode && _caravanPath.Count >= 2)
+            {
+                ExecuteCaravan();
+                return;
+            }
+
+            int existingIdx = _caravanPath.IndexOf(provinceId);
+            if (existingIdx > 0)
+            {
+                _caravanPath.RemoveRange(existingIdx + 1, _caravanPath.Count - (existingIdx + 1));
+                return;
+            }
+
+            if (existingIdx < 0 && _session.Provinces[lastNode].IsAdjacentTo(provinceId))
+            {
+                _caravanPath.Add(provinceId);
+                return;
+            }
+
+            LastResult = ActionResult.NotAdjacent;
+        }
+
+        public void ExecuteCaravan()
+        {
+            if (_caravanPath.Count < 2)
+            {
+                CancelTargeting();
+                return;
+            }
+
+            int landingProvince = _caravanPath[Math.Min(_caravanPath.Count - 1, 2)];
+            LastResult = _session.RunCaravan(_caravanPath);
+            _caravanPath.Clear();
+            Targeting = TargetingMode.None;
+            if (LastResult == ActionResult.Ok)
+            {
+                Select(landingProvince);
+            }
+
+            Changed?.Invoke();
+        }
+
+        public void AdvanceCaravan()
+        {
+            if (SelectedProvinceId == NoSelection) return;
+
+            var path = _session.GetAssignedCaravanPath(SelectedProvinceId, _session.CurrentPlayer.PlayerId);
+            int currentIdx = -1;
+            for (int i = 0; i < path.Count; i++)
+            {
+                if (path[i] == SelectedProvinceId)
+                {
+                    currentIdx = i;
+                    break;
+                }
+            }
+
+            LastResult = _session.AdvanceCaravan(SelectedProvinceId);
+            if (LastResult == ActionResult.Ok && currentIdx >= 0 && path.Count > 0)
+            {
+                int landingProvince = path[Math.Min(path.Count - 1, currentIdx + 2)];
+                Select(landingProvince);
+            }
+
+            Changed?.Invoke();
+        }
+
+        public bool IsCaravanWaypoint(int provinceId)
+        {
+            if (Targeting == TargetingMode.Caravan && _caravanPath.Contains(provinceId))
+            {
+                return true;
+            }
+
+            if (SelectedProvinceId != NoSelection && _session.CurrentPlayer.Faction == FactionType.Guilds)
+            {
+                var assigned = _session.GetAssignedCaravanPath(SelectedProvinceId, _session.CurrentPlayer.PlayerId);
+                for (int i = 0; i < assigned.Count; i++)
+                {
+                    if (assigned[i] == provinceId) return true;
+                }
+            }
+
+            return false;
+        }
+
+        public void BeginCaravan()
+        {
+            if (SelectedProvinceId == NoSelection) return;
+
+            _caravanPath.Clear();
+            _caravanPath.Add(SelectedProvinceId);
+            Targeting = TargetingMode.Caravan;
+            Changed?.Invoke();
+        }
+
+        public void BuildTradingPost()
+        {
+            if (SelectedProvinceId == NoSelection) return;
+            LastResult = _session.BuildTradingPost(SelectedProvinceId);
+            Changed?.Invoke();
+        }
+
+        public void HostileBuyout()
+        {
+            if (SelectedProvinceId == NoSelection) return;
+            LastResult = _session.HostileBuyout(SelectedProvinceId);
+            Changed?.Invoke();
+        }
+
+        public void DeclareEmbargo(int guildPlayerId)
+        {
+            if (SelectedProvinceId == NoSelection) return;
+            LastResult = _session.DeclareEmbargo(guildPlayerId);
+            Changed?.Invoke();
+        }
+
+        public void RaidCaravan(int guildPlayerId)
+        {
+            if (SelectedProvinceId == NoSelection) return;
+            LastResult = _session.RaidCaravan(SelectedProvinceId, guildPlayerId);
+            Changed?.Invoke();
+        }
+
+        public void SellMercenaryContract(int buyerPlayerId)
+        {
+            if (SelectedProvinceId == NoSelection) return;
+            LastResult = _session.SellMercenaryContract(SelectedProvinceId, buyerPlayerId);
+            Changed?.Invoke();
+        }
+
         public void ClickEmptySpace()
         {
-            LastResult = CommandResult.Ok;
+            if (Targeting == TargetingMode.SelectGuildPostCapital) return;
+
+            LastResult = ActionResult.Ok;
             Targeting = TargetingMode.None;
+            _caravanPath.Clear();
             Select(NoSelection);
             Changed?.Invoke();
         }
 
         public void CancelTargeting()
         {
-            if (Targeting == TargetingMode.None) return;
+            if (Targeting == TargetingMode.None || Targeting == TargetingMode.SelectGuildPostCapital) return;
 
             Targeting = TargetingMode.None;
+            _caravanPath.Clear();
             Changed?.Invoke();
         }
 
@@ -118,12 +284,12 @@ namespace Presentation.Hud
             if (SelectedProvinceId == NoSelection) return;
 
             LastResult = _session.ValidateMoveOrigin(SelectedProvinceId);
-            if (LastResult == CommandResult.Ok && MovableUnitCount == 0)
+            if (LastResult == ActionResult.Ok && MovableUnitCount == 0)
             {
-                LastResult = CommandResult.NoUnitsSelected;
+                LastResult = ActionResult.NoUnitsSelected;
             }
 
-            Targeting = LastResult == CommandResult.Ok ? TargetingMode.Move : TargetingMode.None;
+            Targeting = LastResult == ActionResult.Ok ? TargetingMode.Move : TargetingMode.None;
             Changed?.Invoke();
         }
 
@@ -160,6 +326,14 @@ namespace Presentation.Hud
             Changed?.Invoke();
         }
 
+        public void BuildFort()
+        {
+            if (SelectedProvinceId == NoSelection) return;
+
+            LastResult = _session.BuildFort(SelectedProvinceId);
+            Changed?.Invoke();
+        }
+
         public void BuildChurch()
         {
             if (SelectedProvinceId == NoSelection) return;
@@ -176,12 +350,12 @@ namespace Presentation.Hud
             Changed?.Invoke();
         }
 
-        public void DivineConversion()
+        public void DivineConversion(int missionaryCount = 1)
         {
             if (SelectedProvinceId == NoSelection) return;
 
             Targeting = TargetingMode.None;
-            LastResult = _session.DivineConversion(SelectedProvinceId);
+            LastResult = _session.DivineConversion(SelectedProvinceId, missionaryCount);
             Changed?.Invoke();
         }
 
@@ -243,20 +417,40 @@ namespace Presentation.Hud
         {
             LastResult = _session.EndTurn();
             Targeting = TargetingMode.None;
+            _caravanPath.Clear();
             Select(NoSelection);
             Changed?.Invoke();
         }
 
-        public bool IsValidMoveTarget(int provinceId) =>
-            Targeting != TargetingMode.None
-            && provinceId != SelectedProvinceId
-            && _session.Provinces[SelectedProvinceId].IsAdjacentTo(provinceId);
+        public bool IsValidMoveTarget(int provinceId)
+        {
+            if (Targeting == TargetingMode.Move)
+            {
+                return provinceId != SelectedProvinceId
+                       && _session.Provinces[SelectedProvinceId].IsAdjacentTo(provinceId);
+            }
+
+            if (Targeting == TargetingMode.Caravan && _caravanPath.Count > 0)
+            {
+                int tail = _caravanPath[_caravanPath.Count - 1];
+                return !_caravanPath.Contains(provinceId) && _session.Provinces[tail].IsAdjacentTo(provinceId);
+            }
+
+            if (Targeting == TargetingMode.SelectGuildPostCapital)
+            {
+                var p = _session.Provinces[provinceId];
+                return p.OwnerId != _session.CurrentPlayer.PlayerId && !p.HasTradingPost;
+            }
+
+            return false;
+        }
 
         private void Select(int provinceId)
         {
             SelectedProvinceId = provinceId;
             MoveUnitTypeFilter = null;
             _unitsToMove = int.MaxValue;
+            _missionariesToConvert = 1;
         }
 
         private List<int> GetFilteredMovableUnitIds(int provinceId)
@@ -286,6 +480,47 @@ namespace Presentation.Hud
             }
 
             return movable;
+        }
+
+        public void Capitulate()
+        {
+            Targeting = TargetingMode.None;
+            _caravanPath.Clear();
+            LastResult = _session.Capitulate();
+            Changed?.Invoke();
+        }
+
+        public void SyncPendingTargeting()
+        {
+            if (_session.IsAwaitingGuildCapitalSelection)
+            {
+                Targeting = TargetingMode.SelectGuildPostCapital;
+            }
+            else if (Targeting == TargetingMode.SelectGuildPostCapital)
+            {
+                Targeting = TargetingMode.None;
+            }
+        }
+
+        public int AvailableMissionaries =>
+            SelectedProvinceId == NoSelection
+                ? 0
+                : _session.GetUnitsForPlayer(SelectedProvinceId, _session.CurrentPlayer.PlayerId, UnitType.Missionary)
+                    .Count;
+
+        public int MissionariesToConvert =>
+            Math.Clamp(_missionariesToConvert, Math.Min(1, AvailableMissionaries), Math.Max(1, AvailableMissionaries));
+
+        public void IncreaseMissionariesToConvert()
+        {
+            _missionariesToConvert = Math.Min(AvailableMissionaries, MissionariesToConvert + 1);
+            Changed?.Invoke();
+        }
+
+        public void DecreaseMissionariesToConvert()
+        {
+            _missionariesToConvert = Math.Max(1, MissionariesToConvert - 1);
+            Changed?.Invoke();
         }
     }
 }

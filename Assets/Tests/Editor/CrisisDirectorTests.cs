@@ -24,12 +24,13 @@ namespace Tests.Editor
         }
 
         [Test]
-        public void CanTriggerCrisis_ReturnsTrue_WhenLandedFactionDropsBelowThreeProvinces()
+        public void CanTriggerCrisis_ReturnsTrue_WhenLandedFactionBelowThreeProvinces()
         {
             var player = new PlayerProfile(1, FactionType.Militants, Gold: 10, VictoryPoints: 20,
                 new List<UnitInstance>());
 
             Assert.IsTrue(_director.CanTriggerCrisis(player, controlledProvinces: 2));
+            Assert.IsTrue(_director.CanTriggerCrisis(player, controlledProvinces: 1));
             Assert.IsFalse(_director.CanTriggerCrisis(player, controlledProvinces: 3));
         }
 
@@ -72,7 +73,7 @@ namespace Tests.Editor
             };
             var player = new PlayerProfile(1, FactionType.Guerrillas, Gold: 8, VictoryPoints: 30, insurgentUnits);
 
-            Assert.IsTrue(_director.CanTriggerAscension(player, controlledProvinces: 5));
+            Assert.IsTrue(_director.CanTriggerAscension(player, rebelProvinces: 5));
 
             var result = _director.ExecuteAscension(player, FactionType.Militants);
 
@@ -80,7 +81,7 @@ namespace Tests.Editor
             Assert.AreEqual(33, result.UpdatedProfile.VictoryPoints);
             Assert.AreEqual(FactionType.Militants, result.UpdatedProfile.Faction);
             Assert.AreEqual(1, result.UpdatedProfile.Units[0].OwnerPlayerId);
-            Assert.AreEqual(FactionType.Guerrillas, result.UpdatedProfile.Units[0].OriginalFaction);
+            Assert.AreEqual(FactionType.Militants, result.UpdatedProfile.Units[0].OriginalFaction);
             Assert.IsTrue(result.IsAscension);
         }
     }

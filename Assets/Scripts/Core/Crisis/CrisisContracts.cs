@@ -37,11 +37,12 @@ namespace Core.Crisis
     public interface ICrisisDirector
     {
         bool CanTriggerCrisis(PlayerProfile player, int controlledProvinces);
-        bool CanTriggerAscension(PlayerProfile player, int controlledProvinces);
+        bool CanCapitulate(PlayerProfile player);
+        bool CanTriggerAscension(PlayerProfile player, int rebelProvinces);
         bool CanTriggerVoluntaryShift(PlayerProfile player, FactionType targetFaction, int controlledProvinces);
         bool CheckVictory(PlayerProfile player);
 
-        CrisisShiftResult ExecuteForcedCrisis(PlayerProfile player);
+        CrisisShiftResult ExecuteForcedCrisis(PlayerProfile player, bool isCapitulation = false);
         CrisisShiftResult ExecuteAscension(PlayerProfile player, FactionType targetLandedFaction);
         CrisisShiftResult ExecuteVoluntaryShift(PlayerProfile player, FactionType targetFaction);
 

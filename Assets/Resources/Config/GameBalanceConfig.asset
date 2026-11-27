@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 230ae537b86d42d5968cbb570e15648a, type: 3}
+  m_Name: GameBalanceConfig
+  m_EditorClassIdentifier: Projection.Presentation::Presentation.Config.GameBalanceConfigAsset
+  startingGold: 10
+  unitCost: 3
+  missionaryCost: 3
+  traderCost: 2
+  churchCost: 4
+  churchTithe: 1
+  rebellionCellCost: 2
+  tradingPostCost: 4
+  fortCost: 5
+  defaultMercenaryPrice: 4
+  startingTradingPostCount: 2
+  caravanBaseGainPerProvince: 2
+  caravanTransitToll: 1
+  caravanMinTraversedForVp: 3
+  hostileBuyoutBaseCost: 6
+  hostileBuyoutUnitPremium: 2
+  hostileBuyoutBuildingPremium: 2
+  victoryPointsPerProvince: 1
+  buildFortVp: 1
+  buildChurchVp: 2
+  captureOrCrushRebellionVp: 2
+  defendRebellionVp: 2
+  victoryPointsThreshold: 50
+  crisisProvinceThreshold: 3
+  ascensionProvinceThreshold: 5

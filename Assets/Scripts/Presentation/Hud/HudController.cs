@@ -1,8 +1,9 @@
 using System;
 using Core.Combat;
 using Core.Crisis;
+using Core.Board;
+using Core.Simulation;
 using Presentation.Map;
-using Presentation.Prototype;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -13,9 +14,9 @@ namespace Presentation.Hud
     {
         private const float BannerSeconds = 4f;
 
-        private PrototypeGameSession _session;
+        private GameSession _session;
         private HudInteraction _interaction;
-        private CombatCoordinator _coordinator;
+        private ICrisisDirector _crisisDirector;
         private DiceRollView _diceRoll;
 
         private VisualElement _root;
@@ -45,22 +46,20 @@ namespace Presentation.Hud
         private Label _victoryLabel;
         private float _bannerLeft;
 
-        public void Initialize(
-            PrototypeGameSession session,
-            HudInteraction interaction,
-            CombatCoordinator coordinator)
+        public void Initialize(GameSession session, HudInteraction interaction, ICrisisDirector crisisDirector)
         {
             _session = session;
             _interaction = interaction;
-            _coordinator = coordinator;
+            _crisisDirector = crisisDirector;
 
             BindElements(GetComponent<UIDocument>().rootVisualElement);
 
             _session.StateChanged += Refresh;
             _session.BattleResolved += _diceRoll.Play;
+            _session.ConversionResolved += _diceRoll.PlayConversion;
             _interaction.Changed += Refresh;
-            _coordinator.OnRulesetShifted += ShowRulesetShift;
-            _coordinator.OnGameWon += ShowVictory;
+            _crisisDirector.OnRulesetShifted += ShowRulesetShift;
+            _crisisDirector.OnVictoryAchieved += ShowVictory;
 
             Refresh();
         }
@@ -171,12 +170,14 @@ namespace Presentation.Hud
 
         private void Refresh()
         {
+            _interaction.SyncPendingTargeting();
+
             var player = _session.CurrentPlayer;
             _playerLabel.text = HudText.Player(player);
-            _playerFlag.style.unityBackgroundImageTintColor = FactionPalette.For(player.Faction);
+            _playerFlag.style.unityBackgroundImageTintColor = PlayerPalette.ForPlayerId(player.PlayerId);
             _apLabel.text = HudText.ActionPoints(player.ActionPoints, PlayerProfile.BaseActionPoints);
             _goldLabel.text = HudText.Gold(player.Gold);
-            _vpLabel.text = HudText.VictoryPoints(player.VictoryPoints);
+            _vpLabel.text = HudText.VictoryPoints(player.VictoryPoints, _session.Config);
             _turnLabel.text = HudText.Turn(_session.TurnNumber);
 
             RefreshProvincePanel();
@@ -186,6 +187,7 @@ namespace Presentation.Hud
         private void RefreshProvincePanel()
         {
             int selected = _interaction.SelectedProvinceId;
+            int viewerId = _session.CurrentPlayer.PlayerId;
             bool hasSelection = selected != HudInteraction.NoSelection;
             _provincePanel.style.display = hasSelection ? DisplayStyle.Flex : DisplayStyle.None;
             if (!hasSelection) return;
@@ -193,10 +195,12 @@ namespace Presentation.Hud
             var province = _session.Provinces[selected];
             _provinceName.text = province.Name;
             _provinceOwner.text = HudText.Owner(_session.GetPlayer(province.OwnerId));
+            _provinceName.text = HudText.ProvinceTitle(province);
 
-            string summary = HudText.Units(province.Units.Count, _session.CountMovableUnits(selected));
-            string breakdown = HudText.GarrisonBreakdown(province, _session.GetPlayer);
-            string markers = HudText.ProvinceMarkers(province, _session.GetPlayer);
+            string summary = HudText.Units(HudText.VisibleUnitCount(province, viewerId),
+                _session.CountMovableUnits(selected));
+            string breakdown = HudText.GarrisonBreakdown(province, _session.GetPlayer, viewerId);
+            string markers = HudText.ProvinceMarkers(province, _session.GetPlayer, viewerId);
 
             _provinceUnits.text = breakdown.Length > 0 ? $"{summary}\n{breakdown}" : summary;
             _provinceFort.text = markers.Length > 0
@@ -207,7 +211,7 @@ namespace Presentation.Hud
             int filteredMovable = _interaction.MovableUnitCount;
             int unitsToMove = _interaction.UnitsToMove;
 
-            _moveButton.SetEnabled(_session.ValidateMoveOrigin(selected) == CommandResult.Ok && filteredMovable > 0);
+            _moveButton.SetEnabled(_session.ValidateMoveOrigin(selected) == ActionResult.Ok && filteredMovable > 0);
             _moveButton.text = HudText.MoveButton(unitsToMove);
             _splitRow.style.display = totalMovable > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             _filterTypeButton.text = HudText.UnitFilter(_interaction.MoveUnitTypeFilter);
@@ -223,6 +227,7 @@ namespace Presentation.Hud
             _dynamicActionsContainer.Clear();
 
             var player = _session.CurrentPlayer;
+            var config = _session.Config;
             bool hasAp = !_session.IsGameOver && player.ActionPoints > 0;
             bool isOwnProvince = province.OwnerId == player.PlayerId;
             bool hasOwnMilitary =
@@ -245,13 +250,49 @@ namespace Presentation.Hud
                 }
             }
 
+            // 1b. Embargo & Caravan Raiding against co-existing Guild Traders
+            if (player.Faction != FactionType.Guilds)
+            {
+                for (int i = 0; i < province.Units.Count; i++)
+                {
+                    var u = province.Units[i];
+                    if (u.Type != UnitType.Trader || u.OwnerPlayerId == player.PlayerId) continue;
+
+                    int guildId = u.OwnerPlayerId;
+                    var guildPlayer = _session.GetPlayer(guildId);
+                    if (guildPlayer == null) continue;
+
+                    if (!_session.IsEmbargoedBy(player.PlayerId, guildId))
+                    {
+                        AddActionButton(
+                            HudText.EmbargoButton(guildPlayer),
+                            hasAp,
+                            () => _interaction.DeclareEmbargo(guildId));
+                    }
+                    else if (hasOwnMilitary)
+                    {
+                        AddActionButton(
+                            HudText.RaidCaravanButton(guildPlayer),
+                            hasAp,
+                            () => _interaction.RaidCaravan(guildId));
+                    }
+
+                    break;
+                }
+            }
+
             // 2. Faction-Specific & Counter-Action Buttons
             switch (player.Faction)
             {
                 case FactionType.Militants:
                     AddActionButton(
-                        HudText.BuyButton(),
-                        hasAp && isOwnProvince && player.Gold >= PrototypeGameSession.UnitCost,
+                        HudText.BuildFortButton(config),
+                        hasAp && isOwnProvince && !province.HasFort && player.Gold >= config.FortCost,
+                        _interaction.BuildFort);
+
+                    AddActionButton(
+                        HudText.BuyButton(config),
+                        hasAp && isOwnProvince && player.Gold >= config.UnitCost,
                         _interaction.BuyUnit);
 
                     if (hasOwnMilitary && province.RebellionCell != null && province.RebellionCell.IsOpenRebellion)
@@ -259,7 +300,18 @@ namespace Presentation.Hud
                         AddActionButton(HudText.MartialLawButton(), hasAp, _interaction.MartialLaw);
                     }
 
-                    if (hasOwnMilitary && province.PresenceToken != null)
+                    bool hasEnemyMissionary = false;
+                    for (int i = 0; i < province.Units.Count; i++)
+                    {
+                        var u = province.Units[i];
+                        if (u.OwnerPlayerId != player.PlayerId && u.Type == UnitType.Missionary)
+                        {
+                            hasEnemyMissionary = true;
+                            break;
+                        }
+                    }
+
+                    if (hasOwnMilitary && (province.PresenceToken != null || hasEnemyMissionary))
                     {
                         AddActionButton(HudText.InquisitionButton(), hasAp, _interaction.Inquisition);
                     }
@@ -268,18 +320,20 @@ namespace Presentation.Hud
                     break;
 
                 case FactionType.Zealots:
-                    bool hasMissionary =
-                        _session.GetUnitsForPlayer(selectedProvinceId, player.PlayerId, UnitType.Missionary).Count > 0;
+                    int missionaryCount =
+                        _session.GetUnitsForPlayer(selectedProvinceId, player.PlayerId, UnitType.Missionary).Count;
+                    bool hasMissionary = missionaryCount > 0;
                     bool hasEnemyMilitary = _session.GetCoexistingEnemyIds(selectedProvinceId).Count > 0;
+                    int selectedMissionaries = _interaction.MissionariesToConvert;
 
                     AddActionButton(
-                        HudText.BuyMissionaryButton(),
-                        hasAp && isOwnProvince && player.Gold >= PrototypeGameSession.MissionaryCost,
+                        HudText.BuyMissionaryButton(config),
+                        hasAp && isOwnProvince && player.Gold >= config.MissionaryCost,
                         _interaction.BuyMissionary);
 
                     AddActionButton(
-                        HudText.BuildChurchButton(),
-                        hasAp && isOwnProvince && !province.HasChurch && player.Gold >= PrototypeGameSession.ChurchCost,
+                        HudText.BuildChurchButton(config),
+                        hasAp && isOwnProvince && !province.HasChurch && player.Gold >= config.ChurchCost,
                         _interaction.BuildChurch);
 
                     AddActionButton(
@@ -287,10 +341,39 @@ namespace Presentation.Hud
                         hasAp && hasMissionary && province.PresenceToken == null,
                         _interaction.Consecrate);
 
-                    AddActionButton(
-                        HudText.DivineConversionButton(),
-                        hasAp && hasMissionary && hasEnemyMilitary,
-                        _interaction.DivineConversion);
+                    if (missionaryCount > 1)
+                    {
+                        var row = new VisualElement();
+                        row.style.flexDirection = FlexDirection.Row;
+                        row.style.marginTop = 3;
+
+                        var convertBtn = new Button(() => _interaction.DivineConversion(selectedMissionaries))
+                        {
+                            text = HudText.DivineConversionButton(selectedMissionaries, missionaryCount)
+                        };
+                        convertBtn.style.flexGrow = 1;
+                        convertBtn.SetEnabled(hasAp && hasEnemyMilitary);
+
+                        var minusBtn = new Button(_interaction.DecreaseMissionariesToConvert) { text = "-" };
+                        minusBtn.style.marginLeft = 4;
+                        minusBtn.SetEnabled(hasAp && selectedMissionaries > 1);
+
+                        var plusBtn = new Button(_interaction.IncreaseMissionariesToConvert) { text = "+" };
+                        plusBtn.style.marginLeft = 2;
+                        plusBtn.SetEnabled(hasAp && selectedMissionaries < missionaryCount);
+
+                        row.Add(convertBtn);
+                        row.Add(minusBtn);
+                        row.Add(plusBtn);
+                        _dynamicActionsContainer.Add(row);
+                    }
+                    else
+                    {
+                        AddActionButton(
+                            HudText.DivineConversionButton(1, missionaryCount),
+                            hasAp && hasMissionary && hasEnemyMilitary,
+                            () => _interaction.DivineConversion(1));
+                    }
 
                     AddCleanseButtonIfApplicable(province, player.PlayerId, hasAp && hasOwnMilitary);
                     break;
@@ -302,20 +385,92 @@ namespace Presentation.Hud
                         hasAp && province.RebellionCell == null && player.Gold >= cellCost,
                         _interaction.PlaceRebellionCell);
 
-                    if (province.RebellionCell != null
-                        && province.RebellionCell.OwnerId == player.PlayerId
-                        && !province.RebellionCell.IsOpenRebellion)
+                    if (province.RebellionCell != null && province.RebellionCell.OwnerId == player.PlayerId)
                     {
-                        AddActionButton(HudText.InciteRebellionButton(), hasAp, _interaction.InciteRebellion);
+                        AddActionButton(
+                            HudText.BuyButton(config),
+                            hasAp && player.Gold >= config.UnitCost,
+                            _interaction.BuyUnit);
+
+                        if (!province.RebellionCell.IsOpenRebellion)
+                        {
+                            AddActionButton(HudText.InciteRebellionButton(), hasAp, _interaction.InciteRebellion);
+                        }
                     }
 
                     break;
 
                 case FactionType.Guilds:
+                    var traders = _session.GetUnitsForPlayer(selectedProvinceId, player.PlayerId, UnitType.Trader);
+                    bool hasTrader = traders.Count > 0;
+                    bool hasAssignedCaravan = _session.HasAssignedCaravan(selectedProvinceId, player.PlayerId);
+                    bool hasReadyUnassignedTrader = false;
+                    for (int i = 0; i < traders.Count; i++)
+                    {
+                        if (!traders[i].HasActed && !hasAssignedCaravan) hasReadyUnassignedTrader = true;
+                    }
+
+                    bool hasReadyAssignedTrader = false;
+                    for (int i = 0; i < traders.Count; i++)
+                    {
+                        if (!traders[i].HasActed && hasAssignedCaravan) hasReadyAssignedTrader = true;
+                    }
+
                     AddActionButton(
-                        HudText.BuyTraderButton(),
-                        hasAp && isOwnProvince && player.Gold >= PrototypeGameSession.TraderCost,
+                        HudText.BuyTraderButton(config),
+                        hasAp && (isOwnProvince || province.TradingPostOwnerId == player.PlayerId)
+                              && player.Gold >= config.TraderCost
+                              && _session.CountPlayerUnitsOfType(player.PlayerId, UnitType.Trader) <
+                              _session.CountOwnedTradingPosts(player.PlayerId),
                         _interaction.BuyTrader);
+
+                    int postCost = _session.GetTradingPostBuildCost(player.PlayerId);
+                    AddActionButton(
+                        HudText.BuildTradingPostButton(postCost),
+                        hasAp && !province.HasTradingPost && player.Gold >= postCost,
+                        _interaction.BuildTradingPost);
+
+                    if (hasAssignedCaravan)
+                    {
+                        AddActionButton(
+                            HudText.AdvanceCaravanButton(),
+                            hasAp && hasReadyAssignedTrader,
+                            _interaction.AdvanceCaravan);
+                    }
+                    else if (_interaction.IsTargetingCaravan)
+                    {
+                        AddActionButton(
+                            HudText.ConfirmCaravanButton(_interaction.CaravanPath.Count),
+                            hasAp && _interaction.CaravanPath.Count >= 2,
+                            _interaction.ExecuteCaravan);
+                    }
+                    else
+                    {
+                        AddActionButton(
+                            HudText.CaravanNetworkButton(),
+                            hasAp && hasReadyUnassignedTrader && province.HasTradingPost,
+                            _interaction.BeginCaravan);
+                    }
+
+                    if (province.OwnerId != ProvinceState.NeutralOwner && province.OwnerId != player.PlayerId)
+                    {
+                        int buyoutCost = _session.GetHostileBuyoutCost(selectedProvinceId);
+                        bool embargoed = _session.IsEmbargoedBy(province.OwnerId, player.PlayerId);
+                        AddActionButton(
+                            HudText.HostileBuyoutButton(buyoutCost),
+                            hasAp && hasTrader && !province.HasFort && !embargoed && player.Gold >= buyoutCost,
+                            _interaction.HostileBuyout);
+
+                        var ownerPlayer = _session.GetPlayer(province.OwnerId);
+                        if (ownerPlayer != null && (hasTrader || province.TradingPostOwnerId == player.PlayerId))
+                        {
+                            AddActionButton(
+                                HudText.SellMercenaryButton(ownerPlayer, config),
+                                hasAp && ownerPlayer.Gold >= config.DefaultMercenaryPrice,
+                                () => _interaction.SellMercenaryContract(ownerPlayer.PlayerId));
+                        }
+                    }
+
                     break;
             }
 
@@ -367,6 +522,14 @@ namespace Presentation.Hud
                         () => _interaction.VoluntaryShift(target));
                 }
             }
+
+            if (_session.CanCapitulate())
+            {
+                AddActionButton(
+                    HudText.CapitulateButton(),
+                    !_session.IsGameOver,
+                    _interaction.Capitulate);
+            }
         }
 
         private void AddActionButton(string label, bool enabled, Action onClick)
@@ -384,7 +547,8 @@ namespace Presentation.Hud
                 ? failure
                 : HudText.Hint(
                     _interaction.SelectedProvinceId != HudInteraction.NoSelection,
-                    _interaction.IsTargetingMove);
+                    _interaction.IsTargetingMove,
+                    _interaction.IsSelectingGuildCapital);
         }
 
         private void ShowRulesetShift(CrisisShiftResult shift)
@@ -406,9 +570,13 @@ namespace Presentation.Hud
 
             _session.StateChanged -= Refresh;
             _session.BattleResolved -= _diceRoll.Play;
+            _session.ConversionResolved -= _diceRoll.PlayConversion;
             _interaction.Changed -= Refresh;
-            _coordinator.OnRulesetShifted -= ShowRulesetShift;
-            _coordinator.OnGameWon -= ShowVictory;
+            if (_crisisDirector != null)
+            {
+                _crisisDirector.OnRulesetShifted -= ShowRulesetShift;
+                _crisisDirector.OnVictoryAchieved -= ShowVictory;
+            }
         }
     }
 }
