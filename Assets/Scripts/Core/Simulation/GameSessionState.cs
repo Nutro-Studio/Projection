@@ -13,6 +13,7 @@ namespace Core.Simulation
         public readonly HashSet<(int EmbargoerId, int GuildId)> ActiveEmbargoes = new();
         public readonly bool CrisisEnabled;
         public readonly GameBalanceConfig Config;
+        public readonly Dictionary<int, ActiveCaravanRoute> ActiveCaravans = new();
 
         public int CurrentPlayerIndex;
         public int NextUnitId;
@@ -111,6 +112,20 @@ namespace Core.Simulation
             }
 
             return count;
+        }
+
+        public sealed class ActiveCaravanRoute
+        {
+            public readonly int TraderUnitId;
+            public readonly List<int> Path;
+            public int CurrentStepIndex;
+
+            public ActiveCaravanRoute(int traderUnitId, List<int> path, int currentStepIndex = 0)
+            {
+                TraderUnitId = traderUnitId;
+                Path = path;
+                CurrentStepIndex = currentStepIndex;
+            }
         }
 
         public void NotifyStateChanged() => StateChanged?.Invoke();

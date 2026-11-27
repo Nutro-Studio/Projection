@@ -55,7 +55,9 @@ namespace Presentation.Map
         {
             for (int i = 0; i < _views.Length; i++)
             {
-                _views[i].ShowHighlight(_interaction.SelectedProvinceId == i, _interaction.IsValidMoveTarget(i));
+                bool isSelected = _interaction.SelectedProvinceId == i;
+                bool isTargetOrWaypoint = _interaction.IsValidMoveTarget(i) || _interaction.IsCaravanWaypoint(i);
+                _views[i].ShowHighlight(isSelected, isTargetOrWaypoint);
             }
         }
     }

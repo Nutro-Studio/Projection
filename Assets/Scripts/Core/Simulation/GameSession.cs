@@ -215,5 +215,14 @@ namespace Core.Simulation
         public ActionResult Capitulate() => _turnAndCrisis.Capitulate();
         public ActionResult VoluntaryShift(FactionType targetFaction) => _turnAndCrisis.VoluntaryShift(targetFaction);
         public ActionResult Ascend(FactionType targetLandedFaction) => _turnAndCrisis.Ascend(targetLandedFaction);
+        public int GetTradingPostBuildCost(int playerId) => _guildCommerce.GetTradingPostBuildCost(playerId);
+
+        public bool HasAssignedCaravan(int provinceId, int playerId) =>
+            _guildCommerce.HasAssignedCaravan(provinceId, playerId);
+
+        public IReadOnlyList<int> GetAssignedCaravanPath(int provinceId, int playerId) =>
+            _guildCommerce.GetAssignedCaravanPath(provinceId, playerId);
+
+        public ActionResult AdvanceCaravan(int provinceId) => _guildCommerce.AdvanceCaravan(provinceId);
     }
 }

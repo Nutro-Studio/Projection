@@ -93,23 +93,20 @@ namespace Presentation.Hud
                 return;
             }
 
-            if (!_caravanPath.Contains(provinceId) && _session.Provinces[lastNode].IsAdjacentTo(provinceId))
+            int existingIdx = _caravanPath.IndexOf(provinceId);
+            if (existingIdx > 0)
+            {
+                _caravanPath.RemoveRange(existingIdx + 1, _caravanPath.Count - (existingIdx + 1));
+                return;
+            }
+
+            if (existingIdx < 0 && _session.Provinces[lastNode].IsAdjacentTo(provinceId))
             {
                 _caravanPath.Add(provinceId);
                 return;
             }
 
             LastResult = ActionResult.NotAdjacent;
-        }
-
-        public void BeginCaravan()
-        {
-            if (SelectedProvinceId == NoSelection) return;
-
-            _caravanPath.Clear();
-            _caravanPath.Add(SelectedProvinceId);
-            Targeting = TargetingMode.Caravan;
-            Changed?.Invoke();
         }
 
         public void ExecuteCaravan()
@@ -120,15 +117,69 @@ namespace Presentation.Hud
                 return;
             }
 
-            int destination = _caravanPath[_caravanPath.Count - 1];
+            int landingProvince = _caravanPath[Math.Min(_caravanPath.Count - 1, 2)];
             LastResult = _session.RunCaravan(_caravanPath);
             _caravanPath.Clear();
             Targeting = TargetingMode.None;
             if (LastResult == ActionResult.Ok)
             {
-                Select(destination);
+                Select(landingProvince);
             }
 
+            Changed?.Invoke();
+        }
+
+        public void AdvanceCaravan()
+        {
+            if (SelectedProvinceId == NoSelection) return;
+
+            var path = _session.GetAssignedCaravanPath(SelectedProvinceId, _session.CurrentPlayer.PlayerId);
+            int currentIdx = -1;
+            for (int i = 0; i < path.Count; i++)
+            {
+                if (path[i] == SelectedProvinceId)
+                {
+                    currentIdx = i;
+                    break;
+                }
+            }
+
+            LastResult = _session.AdvanceCaravan(SelectedProvinceId);
+            if (LastResult == ActionResult.Ok && currentIdx >= 0 && path.Count > 0)
+            {
+                int landingProvince = path[Math.Min(path.Count - 1, currentIdx + 2)];
+                Select(landingProvince);
+            }
+
+            Changed?.Invoke();
+        }
+
+        public bool IsCaravanWaypoint(int provinceId)
+        {
+            if (Targeting == TargetingMode.Caravan && _caravanPath.Contains(provinceId))
+            {
+                return true;
+            }
+
+            if (SelectedProvinceId != NoSelection && _session.CurrentPlayer.Faction == FactionType.Guilds)
+            {
+                var assigned = _session.GetAssignedCaravanPath(SelectedProvinceId, _session.CurrentPlayer.PlayerId);
+                for (int i = 0; i < assigned.Count; i++)
+                {
+                    if (assigned[i] == provinceId) return true;
+                }
+            }
+
+            return false;
+        }
+
+        public void BeginCaravan()
+        {
+            if (SelectedProvinceId == NoSelection) return;
+
+            _caravanPath.Clear();
+            _caravanPath.Add(SelectedProvinceId);
+            Targeting = TargetingMode.Caravan;
             Changed?.Invoke();
         }
 

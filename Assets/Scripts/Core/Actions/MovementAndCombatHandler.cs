@@ -185,7 +185,7 @@ namespace Core.Actions
             return result;
         }
 
-        private static ActionResult SplitSelectedUnits(
+        private ActionResult SplitSelectedUnits(
             ProvinceState province,
             int movingPlayerId,
             IReadOnlyList<int> selectedUnitIds,
@@ -205,6 +205,7 @@ namespace Core.Actions
                 }
 
                 if (unit.HasActed) return ActionResult.UnitsAlreadyMoved;
+                if (_state.ActiveCaravans.ContainsKey(unit.Id)) return ActionResult.CaravanAlreadyAssigned;
                 movers.Add(unit with { HasActed = true });
             }
 

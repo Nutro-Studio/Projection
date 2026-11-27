@@ -370,10 +370,17 @@ namespace Presentation.Hud
                 case FactionType.Guilds:
                     var traders = _session.GetUnitsForPlayer(selectedProvinceId, player.PlayerId, UnitType.Trader);
                     bool hasTrader = traders.Count > 0;
-                    bool hasReadyTrader = false;
+                    bool hasAssignedCaravan = _session.HasAssignedCaravan(selectedProvinceId, player.PlayerId);
+                    bool hasReadyUnassignedTrader = false;
                     for (int i = 0; i < traders.Count; i++)
                     {
-                        if (!traders[i].HasActed) hasReadyTrader = true;
+                        if (!traders[i].HasActed && !hasAssignedCaravan) hasReadyUnassignedTrader = true;
+                    }
+
+                    bool hasReadyAssignedTrader = false;
+                    for (int i = 0; i < traders.Count; i++)
+                    {
+                        if (!traders[i].HasActed && hasAssignedCaravan) hasReadyAssignedTrader = true;
                     }
 
                     AddActionButton(
@@ -384,13 +391,20 @@ namespace Presentation.Hud
                               _session.CountOwnedTradingPosts(player.PlayerId),
                         _interaction.BuyTrader);
 
+                    int postCost = _session.GetTradingPostBuildCost(player.PlayerId);
                     AddActionButton(
-                        HudText.BuildTradingPostButton(config),
-                        hasAp && hasTrader && !province.HasTradingPost
-                        && player.Gold >= config.TradingPostCost,
+                        HudText.BuildTradingPostButton(postCost),
+                        hasAp && !province.HasTradingPost && player.Gold >= postCost,
                         _interaction.BuildTradingPost);
 
-                    if (_interaction.IsTargetingCaravan)
+                    if (hasAssignedCaravan)
+                    {
+                        AddActionButton(
+                            HudText.AdvanceCaravanButton(),
+                            hasAp && hasReadyAssignedTrader,
+                            _interaction.AdvanceCaravan);
+                    }
+                    else if (_interaction.IsTargetingCaravan)
                     {
                         AddActionButton(
                             HudText.ConfirmCaravanButton(_interaction.CaravanPath.Count),
@@ -401,7 +415,7 @@ namespace Presentation.Hud
                     {
                         AddActionButton(
                             HudText.CaravanNetworkButton(),
-                            hasAp && hasReadyTrader && province.HasTradingPost,
+                            hasAp && hasReadyUnassignedTrader && province.HasTradingPost,
                             _interaction.BeginCaravan);
                     }
 

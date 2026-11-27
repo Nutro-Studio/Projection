@@ -159,8 +159,11 @@ namespace Presentation.Hud
         public static string BuildChurchButton(GameBalanceConfig config = null) =>
             $"Build Church ({(config ?? GameBalanceConfig.Default).ChurchCost}G)";
 
-        public static string BuildTradingPostButton(GameBalanceConfig config = null) =>
-            $"Trading Post ({(config ?? GameBalanceConfig.Default).TradingPostCost}G)";
+        public static string BuildTradingPostButton(int cost) =>
+            cost == 0 ? "Trading Post (Free)" : $"Trading Post ({cost}G)";
+
+        public static string ConfirmCaravanButton(int nodes) => $"Assign & Move Caravan ({nodes} nodes)";
+        public static string AdvanceCaravanButton() => "Move Caravan (+2 tiles)";
 
         public static string SellMercenaryButton(PlayerProfile buyer, GameBalanceConfig config = null) =>
             $"Sell Mercenary to P{buyer.PlayerId} ({(config ?? GameBalanceConfig.Default).DefaultMercenaryPrice}G)";
@@ -179,7 +182,6 @@ namespace Presentation.Hud
 
         public static string CleanseButton() => "Cleanse Province";
         public static string CaravanNetworkButton() => "Caravan Network";
-        public static string ConfirmCaravanButton(int nodes) => $"Run Caravan ({nodes} nodes)";
         public static string HostileBuyoutButton(int cost) => $"Hostile Buyout ({cost}G)";
         public static string EmbargoButton(PlayerProfile guild) => $"Embargo P{guild.PlayerId}";
         public static string RaidCaravanButton(PlayerProfile guild) => $"Raid P{guild.PlayerId} Caravan";
@@ -222,8 +224,7 @@ namespace Presentation.Hud
             ActionResult.TraderCapReached => "Build more Trading Posts to support additional Traders.",
             ActionResult.TargetEmbargoed => "Target faction has declared an Embargo against you.",
             ActionResult.NotEmbargoed => "Declare an Embargo before raiding Guild caravans.",
-            ActionResult.CannotBuyoutWithExistingTradingPost =>
-                "Cannot buy out a province that already has a Trading Post.",
+            ActionResult.CaravanAlreadyAssigned => "This trader is already assigned to an active caravan route.",
             _ => result.ToString()
         };
 
