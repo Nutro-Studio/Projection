@@ -184,6 +184,7 @@ namespace Presentation.Hud
         private void RefreshProvincePanel()
         {
             int selected = _interaction.SelectedProvinceId;
+            int viewerId = _session.CurrentPlayer.PlayerId;
             bool hasSelection = selected != HudInteraction.NoSelection;
             _provincePanel.style.display = hasSelection ? DisplayStyle.Flex : DisplayStyle.None;
             if (!hasSelection) return;
@@ -193,9 +194,10 @@ namespace Presentation.Hud
             _provinceOwner.text = HudText.Owner(_session.GetPlayer(province.OwnerId));
             _provinceName.text = HudText.ProvinceTitle(province);
 
-            string summary = HudText.Units(province.Units.Count, _session.CountMovableUnits(selected));
-            string breakdown = HudText.GarrisonBreakdown(province, _session.GetPlayer);
-            string markers = HudText.ProvinceMarkers(province, _session.GetPlayer);
+            string summary = HudText.Units(HudText.VisibleUnitCount(province, viewerId),
+                _session.CountMovableUnits(selected));
+            string breakdown = HudText.GarrisonBreakdown(province, _session.GetPlayer, viewerId);
+            string markers = HudText.ProvinceMarkers(province, _session.GetPlayer, viewerId);
 
             _provinceUnits.text = breakdown.Length > 0 ? $"{summary}\n{breakdown}" : summary;
             _provinceFort.text = markers.Length > 0
@@ -350,11 +352,17 @@ namespace Presentation.Hud
                         hasAp && province.RebellionCell == null && player.Gold >= cellCost,
                         _interaction.PlaceRebellionCell);
 
-                    if (province.RebellionCell != null
-                        && province.RebellionCell.OwnerId == player.PlayerId
-                        && !province.RebellionCell.IsOpenRebellion)
+                    if (province.RebellionCell != null && province.RebellionCell.OwnerId == player.PlayerId)
                     {
-                        AddActionButton(HudText.InciteRebellionButton(), hasAp, _interaction.InciteRebellion);
+                        AddActionButton(
+                            HudText.BuyButton(config),
+                            hasAp && player.Gold >= config.UnitCost,
+                            _interaction.BuyUnit);
+
+                        if (!province.RebellionCell.IsOpenRebellion)
+                        {
+                            AddActionButton(HudText.InciteRebellionButton(), hasAp, _interaction.InciteRebellion);
+                        }
                     }
 
                     break;

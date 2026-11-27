@@ -21,28 +21,34 @@ namespace Presentation.Map
             _interaction = interaction ?? throw new ArgumentNullException(nameof(interaction));
             _views = views ?? throw new ArgumentNullException(nameof(views));
 
-            for (int i = 0; i < _session.Provinces.Count; i++)
-            {
-                ShowProvince(_session.Provinces[i]);
-            }
-
+            RefreshAllProvinces();
             ShowHighlights();
 
             _session.OnProvinceStateChanged += ShowProvince;
+            _session.StateChanged += RefreshAllProvinces;
             _interaction.Changed += ShowHighlights;
         }
 
         public void Dispose()
         {
             _session.OnProvinceStateChanged -= ShowProvince;
+            _session.StateChanged -= RefreshAllProvinces;
             _interaction.Changed -= ShowHighlights;
+        }
+
+        private void RefreshAllProvinces()
+        {
+            for (int i = 0; i < _session.Provinces.Count; i++)
+            {
+                ShowProvince(_session.Provinces[i]);
+            }
         }
 
         private void ShowProvince(ProvinceState province)
         {
             var owner = _session.GetPlayer(province.OwnerId);
             var color = owner == null ? FactionPalette.Neutral : FactionPalette.For(owner.Faction);
-            _views[province.Id].ShowState(province, color, owner != null);
+            _views[province.Id].ShowState(province, color, owner != null, _session.CurrentPlayer.PlayerId);
         }
 
         private void ShowHighlights()

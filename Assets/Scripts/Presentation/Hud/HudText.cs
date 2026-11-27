@@ -267,5 +267,128 @@ namespace Presentation.Hud
 
         public static string Victory(PlayerProfile winner) =>
             $"{Player(winner)} wins with {winner.VictoryPoints} VP!";
+
+        public static int VisibleUnitCount(ProvinceState province, int viewerPlayerId)
+        {
+            bool hideUndercover = province.RebellionCell != null
+                                  && !province.RebellionCell.IsOpenRebellion
+                                  && province.RebellionCell.OwnerId != viewerPlayerId;
+            if (!hideUndercover) return province.Units.Count;
+
+            int cellOwnerId = province.RebellionCell.OwnerId;
+            int count = 0;
+            for (int i = 0; i < province.Units.Count; i++)
+            {
+                if (province.Units[i].OwnerPlayerId != cellOwnerId) count++;
+            }
+
+            return count;
+        }
+
+        public static string GarrisonBreakdown(
+            ProvinceState province,
+            Func<int, PlayerProfile> getPlayer,
+            int viewerPlayerId = ProvinceState.NeutralOwner)
+        {
+            if (province.Units.Count == 0) return string.Empty;
+
+            bool hideUndercover = province.RebellionCell != null
+                                  && !province.RebellionCell.IsOpenRebellion
+                                  && province.RebellionCell.OwnerId != viewerPlayerId;
+            int hiddenOwnerId = hideUndercover ? province.RebellionCell.OwnerId : ProvinceState.NeutralOwner;
+
+            var playerIds = new List<int>();
+            for (int i = 0; i < province.Units.Count; i++)
+            {
+                int ownerId = province.Units[i].OwnerPlayerId;
+                if (ownerId == hiddenOwnerId) continue;
+                if (!playerIds.Contains(ownerId))
+                {
+                    playerIds.Add(ownerId);
+                }
+            }
+
+            var lines = new List<string>(playerIds.Count);
+            for (int p = 0; p < playerIds.Count; p++)
+            {
+                int ownerId = playerIds[p];
+                int military = 0, militaryMovable = 0;
+                int missionary = 0, missionaryMovable = 0;
+                int trader = 0, traderMovable = 0;
+
+                for (int u = 0; u < province.Units.Count; u++)
+                {
+                    var unit = province.Units[u];
+                    if (unit.OwnerPlayerId != ownerId) continue;
+
+                    switch (unit.Type)
+                    {
+                        case UnitType.RegularMilitary:
+                            military++;
+                            if (!unit.HasActed) militaryMovable++;
+                            break;
+                        case UnitType.Missionary:
+                            missionary++;
+                            if (!unit.HasActed) missionaryMovable++;
+                            break;
+                        case UnitType.Trader:
+                            trader++;
+                            if (!unit.HasActed) traderMovable++;
+                            break;
+                    }
+                }
+
+                var parts = new List<string>(3);
+                if (military > 0) parts.Add($"{military} Military ({militaryMovable} movable)");
+                if (missionary > 0) parts.Add($"{missionary} Missionary ({missionaryMovable} movable)");
+                if (trader > 0) parts.Add($"{trader} Trader ({traderMovable} movable)");
+
+                var owner = getPlayer(ownerId);
+                string ownerLabel = owner != null ? $"P{owner.PlayerId} {Faction(owner.Faction)}" : $"P{ownerId}";
+                lines.Add($"{ownerLabel}: {string.Join(", ", parts)}");
+            }
+
+            return string.Join("\n", lines);
+        }
+
+        public static string ProvinceMarkers(
+            ProvinceState province,
+            Func<int, PlayerProfile> getPlayer,
+            int viewerPlayerId = ProvinceState.NeutralOwner)
+        {
+            var markers = new List<string>(3);
+
+            if (province.HasChurch)
+            {
+                var owner = getPlayer(province.ChurchOwnerId);
+                string who = owner != null ? $"P{owner.PlayerId}" : $"P{province.ChurchOwnerId}";
+                markers.Add($"Church ({who})");
+            }
+
+            if (province.PresenceToken != null)
+            {
+                var owner = getPlayer(province.PresenceToken.OwnerId);
+                string who = owner != null ? $"P{owner.PlayerId}" : $"P{province.PresenceToken.OwnerId}";
+                markers.Add($"Religious Presence ({who})");
+            }
+
+            if (province.RebellionCell != null
+                && (province.RebellionCell.IsOpenRebellion || province.RebellionCell.OwnerId == viewerPlayerId))
+            {
+                var owner = getPlayer(province.RebellionCell.OwnerId);
+                string who = owner != null ? $"P{owner.PlayerId}" : $"P{province.RebellionCell.OwnerId}";
+                string state = province.RebellionCell.IsOpenRebellion ? "OPEN REBELLION" : "Undercover Cell";
+                markers.Add($"{state} ({who})");
+            }
+
+            if (province.HasTradingPost)
+            {
+                var owner = getPlayer(province.TradingPostOwnerId);
+                string who = owner != null ? $"P{owner.PlayerId}" : $"P{province.TradingPostOwnerId}";
+                markers.Add($"Trading Post ({who})");
+            }
+
+            return markers.Count == 0 ? string.Empty : $"Markers: {string.Join(" | ", markers)}";
+        }
     }
 }

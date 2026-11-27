@@ -98,10 +98,24 @@ namespace Presentation.Map
                 _startingMissionaries, _hasStartingChurch, _startingRebellionCellOwnerId,
                 _startingTraders, _tradingPostOwnerId, _hasStartingPresence, _startingRebellionUnits);
 
-        public void ShowState(ProvinceState province, Color ownerColor, bool hasOwner)
+        public void ShowState(ProvinceState province, Color ownerColor, bool hasOwner,
+            int viewerPlayerId = ProvinceState.NeutralOwner)
         {
             _ownerColor = ownerColor;
-            _unitCount.text = province.Units.Count.ToString();
+
+            bool hasUndercoverCell = province.RebellionCell != null && !province.RebellionCell.IsOpenRebellion;
+            int cellOwnerId = province.RebellionCell?.OwnerId ?? ProvinceState.NeutralOwner;
+            bool hideUndercoverGuerrillas = hasUndercoverCell && cellOwnerId != viewerPlayerId;
+
+            int visibleUnits = 0;
+            for (int i = 0; i < province.Units.Count; i++)
+            {
+                var unit = province.Units[i];
+                if (hideUndercoverGuerrillas && unit.OwnerPlayerId == cellOwnerId) continue;
+                visibleUnits++;
+            }
+
+            _unitCount.text = visibleUnits.ToString();
             _fortBadge.enabled = province.HasFort;
             _ownerBanner.enabled = hasOwner;
             _ownerBanner.color = Color.Lerp(ownerColor, Color.black, BannerDarken);
@@ -120,9 +134,11 @@ namespace Presentation.Map
 
             if (_rebellionBadge != null)
             {
-                bool hasCell = province.RebellionCell != null;
-                _rebellionBadge.enabled = hasCell;
-                if (hasCell)
+                bool showCell = province.RebellionCell != null
+                                && (province.RebellionCell.IsOpenRebellion ||
+                                    province.RebellionCell.OwnerId == viewerPlayerId);
+                _rebellionBadge.enabled = showCell;
+                if (showCell)
                 {
                     _rebellionBadge.color = province.RebellionCell.IsOpenRebellion
                         ? OpenRebellionTint

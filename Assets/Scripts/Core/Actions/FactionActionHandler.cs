@@ -19,12 +19,26 @@ namespace Core.Actions
 
         public ActionResult BuyUnit(int provinceId)
         {
-            var check = ValidateOwnProvinceAction(provinceId);
-            if (check != ActionResult.Ok) return check;
-            if (_state.CurrentPlayer.Faction == FactionType.Zealots ||
-                _state.CurrentPlayer.Faction == FactionType.Guilds)
+            if (_state.IsGameOver) return ActionResult.GameOver;
+            if (_state.CurrentPlayer.ActionPoints <= 0) return ActionResult.NoActionPoints;
+
+            var player = _state.CurrentPlayer;
+            if (player.Faction == FactionType.Zealots || player.Faction == FactionType.Guilds)
             {
                 return ActionResult.WrongFaction;
+            }
+
+            var province = _state.Provinces[provinceId];
+            if (player.Faction == FactionType.Guerrillas)
+            {
+                if (province.RebellionCell == null || province.RebellionCell.OwnerId != player.PlayerId)
+                {
+                    return ActionResult.NoRebellionCell;
+                }
+            }
+            else if (province.OwnerId != player.PlayerId)
+            {
+                return ActionResult.NotYourProvince;
             }
 
             return Recruit(provinceId, _state.Config.UnitCost, UnitType.RegularMilitary);
@@ -187,10 +201,28 @@ namespace Core.Actions
 
             var province = _state.Provinces[provinceId];
             var cell = province.RebellionCell;
-            if (cell == null || cell.OwnerId != _state.CurrentPlayer.PlayerId) return ActionResult.NoRebellionCell;
+            int playerId = _state.CurrentPlayer.PlayerId;
+            if (cell == null || cell.OwnerId != playerId) return ActionResult.NoRebellionCell;
             if (cell.IsOpenRebellion) return ActionResult.AlreadyBuilt;
 
-            _state.SetProvince(province.WithRebellionCell(new RebellionCell(cell.OwnerId, true)));
+            var updated = province.WithRebellionCell(new RebellionCell(cell.OwnerId, true));
+
+            if (updated.PresenceToken != null && updated.PresenceToken.OwnerId != playerId)
+            {
+                updated = updated.WithPresence(null);
+            }
+
+            if (updated.HasChurch && updated.ChurchOwnerId != playerId && !updated.HasFort)
+            {
+                updated = updated.WithChurch(ProvinceState.NoChurch);
+            }
+
+            if (updated.HasTradingPost && updated.TradingPostOwnerId != playerId && !updated.HasFort)
+            {
+                updated = updated.WithTradingPost(ProvinceState.NoTradingPost);
+            }
+
+            _state.SetProvince(updated);
             _state.SpendActionPoint();
             _state.NotifyStateChanged();
             return ActionResult.Ok;
